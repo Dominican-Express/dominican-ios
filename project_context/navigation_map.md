@@ -9,3 +9,5 @@ Actividad → detalle de movimiento; compartir → extracto CSV DEMO local.
 Transferir o Bizum → revisar → resultado DEMO → nueva operación.
 Perfil → datos personales / notificaciones / límites / domiciliaciones / documentos / seguridad.
 Cuenta compartida → titular / invitar contacto / configuración.
+
+Validación 2026-09-23: recorrido automatizado completo en iPhone 18 Pro claro e iPhone 17e oscuro. Verificación de volver desde Bizum, cuenta compartida y confirmación de envío; tabs mantienen navegación. Sin cambios de destinos durante la validación.

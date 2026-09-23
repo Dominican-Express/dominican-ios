@@ -59,8 +59,10 @@ struct AppTabBar: View {
                     .contentShape(Rectangle())
                 }.buttonStyle(.plain).accessibilityAddTraits(selection == tab ? .isSelected : [])
                     .accessibilityIdentifier("tab-\(tab)")
+                    .accessibilityShowsLargeContentViewer { Label(tab.rawValue, systemImage: tab.symbol) }
             }
         }.animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: selection)
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             .padding(.horizontal, 8).padding(.top, 5)
             .background(DETheme.background).overlay(alignment: .top) { DETheme.line.frame(height: 1) }
     }

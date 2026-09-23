@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CardsView: View {
     @Environment(BankStore.self) private var store
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var model = CardsViewModel()
     var body: some View {
         ScrollView {
@@ -13,7 +14,7 @@ struct CardsView: View {
                             BankCardView(card: item, blocked: store.blockedCardIDs.contains(item.id))
                                 .padding(.horizontal, 22).padding(.bottom, 18).tag(index)
                         }
-                    }.tabViewStyle(.page(indexDisplayMode: .never)).frame(height: 220)
+                    }.tabViewStyle(.page(indexDisplayMode: .never)).frame(height: dynamicTypeSize.isAccessibilitySize ? 470 : 220)
                     VStack(spacing: 10) {
                         Text(card.isPrimary ? "Principal" : "Compartida").font(.subheadline).foregroundStyle(DETheme.muted)
                         HStack(spacing: 5) {
@@ -40,13 +41,13 @@ struct CardsView: View {
                         Button { model.showsVerification = true } label: {
                             Label("Ver datos", systemImage: "creditcard").frame(maxWidth: .infinity, minHeight: 46)
                         }
-                    }.font(.subheadline).buttonStyle(.bordered).tint(DETheme.blue)
+                    }.font(.subheadline).buttonStyle(OutlinedButtonStyle())
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Límite de gasto mensual").font(.headline)
                         let limit = Decimal(store.cardLimits[card.id] ?? 5000)
                         let ratio = Money.ratio(card.spent, to: limit)
                         HStack {
-                            Text(Money.text(card.spent, decimals: 0)).font(.title3.bold()) + Text(" / " + Money.text(limit, decimals: 0)).font(.subheadline)
+                            Text("\(Text(Money.text(card.spent, decimals: 0)).font(.title3.bold())) / \(Money.text(limit, decimals: 0))").font(.subheadline)
                             Spacer()
                             Text(ratio, format: .percent.precision(.fractionLength(0))).font(.subheadline).foregroundStyle(DETheme.muted)
                         }

@@ -12,3 +12,5 @@
 | Perfil | Avatar Ana García, cinco filas | Datos personales, notificaciones, límites, domiciliaciones, documentos, seguridad |
 
 Las vistas auxiliares mantienen el lenguaje de la referencia; no existe referencia visual para ellas. Acceso a Cuenta compartida e Insights desde Inicio, después de la actividad; en iPhone pequeño se desplaza verticalmente.
+
+Las ocho pantallas están ejecutadas y capturadas en iOS 27. Las capturas de referencia para revisión están en `output/qa/light-iphone18pro` y `output/qa/dark-iphone17e`; el informe de QA explica el alcance y limitaciones. Los diseños auxiliares siguen siendo inferidos, no certifican fidelidad respecto a imágenes inexistentes.

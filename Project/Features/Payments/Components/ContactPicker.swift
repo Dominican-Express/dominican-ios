@@ -33,7 +33,7 @@ struct ContactListView: View {
         List(contacts.filter { query.isEmpty || $0.name.localizedStandardContains(query) }) { contact in
             Button { select(contact); dismiss() } label: {
                 HStack { AvatarView(initial: contact.initial, size: 40); Text(contact.name); Spacer(); Image(systemName: "chevron.right") }
-            }
+            }.accessibilityLabel(contact.name)
         }.searchable(text: $query, prompt: "Buscar contacto demo")
             .bankScreen("Contactos").toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cerrar") { dismiss() } } }
     }

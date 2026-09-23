@@ -3,8 +3,12 @@ import Foundation
 enum Money {
     static func text(_ amount: Decimal, decimals: Int = 2) -> String {
         let formatter = NumberFormatter()
-        formatter.locale = Locale(identifier: "es_ES")
+        // The reference groups four-digit amounts; es_ES defaults to grouping only five digits.
+        formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.numberStyle = .decimal
+        formatter.groupingSeparator = "."
+        formatter.decimalSeparator = ","
+        formatter.groupingSize = 3
         formatter.minimumFractionDigits = decimals
         formatter.maximumFractionDigits = decimals
         formatter.usesGroupingSeparator = true

@@ -7,6 +7,7 @@ struct BrandMark: View {
         Text("DOMINICAN\nEXPRESS")
             .font(.system(size: width / 7.6, weight: .black, design: .rounded))
             .tracking(-0.8).lineSpacing(-4).multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
             .foregroundStyle(Color.white)
             .shadow(color: DETheme.blue, radius: 0, x: 1, y: 1)
             .shadow(color: DETheme.blue, radius: 0, x: -1, y: -1)
@@ -57,6 +58,16 @@ struct PrimaryButton: View {
             .foregroundStyle(.white)
             .background(DETheme.blue.opacity(disabled ? 0.4 : 1), in: RoundedRectangle(cornerRadius: 12))
         }.buttonStyle(.plain).disabled(disabled || loading)
+    }
+}
+
+struct OutlinedButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.horizontal, 8)
+            .foregroundStyle(DETheme.blue)
+            .background(DETheme.paleBlue.opacity(configuration.isPressed ? 0.8 : 0.3), in: RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(DETheme.blue.opacity(0.7), lineWidth: 1))
     }
 }
 

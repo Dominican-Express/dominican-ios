@@ -6,16 +6,16 @@ struct HomeView: View {
     var body: some View {
         ScrollView {
             if let data = store.data, let account = data.accounts.first, let card = data.cards.first {
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        BrandMark(width: 138)
+                        BrandMark(width: 120)
                         Spacer()
                         NavigationLink { NotificationsView() } label: {
                             Image(systemName: "bell").font(.title3).frame(width: 44, height: 44)
                         }.accessibilityLabel("Notificaciones")
                     }
                     Text("Buenos días, Ana").font(.title3)
-                    NavigationLink { CardsView() } label: { BankCardView(card: card, blocked: store.blockedCardIDs.contains(card.id)) }.buttonStyle(.plain)
+                    NavigationLink { CardsView() } label: { BankCardView(card: card, blocked: store.blockedCardIDs.contains(card.id), aspectRatio: 1.9) }.buttonStyle(.plain)
                     HStack(alignment: .center) {
                         NavigationLink { AccountDetailView(account: account) } label: {
                             VStack(alignment: .leading, spacing: 5) {
@@ -46,7 +46,7 @@ struct HomeView: View {
                     VStack(spacing: 0) {
                         NavigationLink { SharedAccountView() } label: { MenuRow(title: "Cuenta compartida", symbol: "person.2") }
                         Divider()
-                        NavigationLink { InsightsView() } label: { MenuRow(title: "Insights", symbol: "chart.donut") }
+                        NavigationLink { InsightsView() } label: { MenuRow(title: "Insights", symbol: "chart.pie") }
                     }.padding(.top, 12)
                     DemoFootnote()
                 }.padding(.horizontal, 20).padding(.top, 5)

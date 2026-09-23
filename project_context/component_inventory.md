@@ -8,3 +8,7 @@ Los componentes previstos existen en `DesignSystem/Components.swift`, `Features/
 
 ## View models
 BankStore comparte snapshot, preferencias, bloqueos, límites y roles. ActivityViewModel filtra y exporta; PaymentViewModel valida y controla envío/error/recibo; CardsViewModel mantiene selección/hojas; InsightsViewModel calcula períodos y totales. Home/Profile/SharedAccount usan el store observable como view model compartido y estado local para presentación. Las entidades comunes no se duplican en cada módulo.
+
+Validación Xcode: BankCardView adapta su composición a dynamicTypeSize; ContactListView tiene etiquetas explícitas; Money agrupa los importes como la referencia. DominicanUITests recorre pantallas, formularios, exportación, límites, cotitularidad y accesibilidad de texto.
+
+Añadido OutlinedButtonStyle para reproducir las acciones de tarjeta; AppTabBar incorpora Large Content Viewer y un límite de escala para sus etiquetas. BrandMark conserva altura intrínseca de dos líneas.

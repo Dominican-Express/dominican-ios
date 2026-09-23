@@ -2,6 +2,12 @@ import Foundation
 import Testing
 @testable import DominicanDomain
 
+@Test func displayedAmountsMatchReferenceGrouping() {
+    #expect(Money.text(Decimal(string: "8425.60")!) == "€ 8.425,60")
+    #expect(Money.text(3150, decimals: 0) == "€ 3.150")
+    #expect(Money.text(Decimal(string: "48.90")!) == "€ 48,90")
+}
+
 @Test func spanishAmountsPreserveCents() {
     #expect(Money.parse("1.245,70") == Decimal(string: "1245.70"))
     #expect(Money.parse("0,01") == Decimal(string: "0.01"))

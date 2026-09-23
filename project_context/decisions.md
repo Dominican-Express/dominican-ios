@@ -21,3 +21,15 @@
 - Preferencias y cambios demo se guardan solo en memoria. Las domiciliaciones mantienen estado local de vista; no representan mandatos reales.
 - Se conservaron fechas de marzo de 2024 de la referencia. Insights mensual no se deriva de la muestra reducida del historial; se indica en el detalle de categoría.
 - Para pruebas locales, `scripts/test.sh` incluye la ruta del plugin Swift Testing cuando se usan Command Line Tools. Sin dependencias externas de testing.
+
+## 2026-09-23 — Validación con Xcode instalado
+- Xcode 27.0 (27A266a), SDK/runtime iOS 27.0. Se mantiene deployment target iOS 26.0.
+- Incorporado target DominicanUITests y al esquema compartido; generador del proyecto conserva la configuración de pruebas. No se añaden dependencias externas.
+- Corregido formato monetario: la referencia agrupa cuatro cifras (8.425,60), mientras es_ES en el sistema nuevo omite ese separador. NumberFormatter utiliza separadores españoles explícitos y agrupación de tres cifras, con prueba de regresión.
+- Reducida la separación de la cabecera de Inicio y ajustada su tarjeta a proporción 1,9 para recuperar la densidad de la referencia.
+- La auditoría de recortes encontró el nombre de tarjeta truncado con texto de accesibilidad máximo. En tamaños accesibles se apila el encabezado y se amplían tarjeta/carrusel; se mantiene el diseño normal para tamaños estándar.
+- ContactListView expone el nombre del contacto como etiqueta accesible, sin iniciales ni chevron redundantes.
+- Sustituido símbolo no disponible chart.donut por chart.pie; eliminada concatenación Text obsoleta en iOS 26.
+- Las pruebas UI usan `-collect-test-diagnostics never` para evitar la recogida de sysdiagnose excesivamente lenta de este runtime tras fallos. Se conservan aserciones, capturas e informes XCTest.
+- Tras inspección de capturas AX5, la barra inferior limita su Dynamic Type a XXXL estándar y añade Large Content Viewer; el contenido principal mantiene tamaños accesibles completos. Se evita fragmentar las cinco etiquetas de navegación.
+- BrandMark fija su altura intrínseca para no perder la segunda línea en el iPhone pequeño. OutlinedButtonStyle reemplaza el estilo bordered del sistema, que en iOS 27 producía cápsulas diferentes de la referencia.

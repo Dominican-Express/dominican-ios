@@ -9,9 +9,9 @@ Demo bancaria nativa para iPhone, SwiftUI/MVVM, que reproduce ocho pantallas de 
 3. Solicitud de implementación: nativo, Swift/SwiftUI, async/await, MVVM, mocks, Dark Mode, accesibilidad, documentación y fidelidad visual.
 
 ## Estado de entrega, 2026-09-23
-Implementación de las ocho pantallas, detalles y flujos DEMO en 26 archivos Swift. Proyecto Xcode autocontenido, esquema compartido, icono y manifiesto de privacidad. No hay dependencias externas ni llamadas de red. Ocho pruebas de dominio/view models ejecutadas y aprobadas.
+Implementación de las ocho pantallas, detalles y flujos DEMO en 26 archivos Swift. Proyecto Xcode autocontenido, esquema compartido, icono y manifiesto de privacidad. No hay dependencias externas ni llamadas de red. Nueve pruebas de dominio/view models ejecutadas y aprobadas tras añadir la regresión de formato monetario.
 
-No hay Xcode.app/SDK iOS/simulador en este equipo: compilación y ejecución iOS pendientes. No certificar 95 % de fidelidad ni calidad de producción sin QA visual y de dispositivo. El logo se aproxima mediante texto vectorial; solicitar vector oficial para reproducción exacta.
+Actualización: Xcode 27.0 (27A266a) instalado, compilaciones Debug/Simulator y Release/iPhone sin firma correctas. App ejecutada en iPhone 18 Pro e iPhone 17e con iOS 27; nueve pruebas de dominio y seis de interfaz, más recorrido oscuro. Capturas y revisión visual en `output/qa`. No se certifica 95 % de similitud: faltan logo vectorial oficial y aceptación visual definitiva. La validación manual de VoiceOver y dispositivo físico sigue pendiente.
 
 ## Cómo continuar
 Abrir `DominicanExpress.xcodeproj` en Xcode estable con SDK iOS 26+. Ejecutar en iPhone. Consultar `pending_tasks.md` y `progress_log.md`. `README.md` contiene comandos. El paquete Swift no es la aplicación: expone únicamente el dominio para pruebas macOS.
@@ -25,7 +25,7 @@ Abrir `DominicanExpress.xcodeproj` en Xcode estable con SDK iOS 26+. Ejecutar en
 - MockData: snapshot fijo y repositorio asíncrono sin red.
 - Utilities: importes Decimal y formato español.
 - Resources: catálogo de assets/icono y PrivacyInfo.xcprivacy.
-- Tests: ocho pruebas con Swift Testing. Scripts: generador determinista de proyecto, icono y comando de pruebas.
+- Tests: nueve pruebas con Swift Testing y seis XCUITests. Scripts: generador determinista de proyecto, icono y comando de pruebas.
 
 ## Estado y datos
 Ana García; cuenta personal € 8.425,60; compartida € 4.280,50; tarjeta principal disponible € 3.150; límite inicial € 5.000. Siete movimientos, siete contactos, tres cotitulares, cuatro categorías, cuatro avisos. Datos sintéticos y cuentas ES00 no válidas. El resumen Insights es independiente de la lista de movimientos recientes. Estado en memoria, sin almacenamiento persistente.

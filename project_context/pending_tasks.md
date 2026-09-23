@@ -1,21 +1,26 @@
-# Tareas pendientes
+# Tareas pendientes — tras validación en Xcode
 
-## Bloqueadas por herramientas locales
-- Instalar Xcode estable y seleccionar su Developer Directory; no existe Xcode en /Applications.
-- Compilar el esquema DominicanExpress para iOS Simulator y corregir cualquier diagnóstico específico del SDK iOS.
-- Ejecutar los ocho flujos y sus detalles en iPhone de tamaño pequeño y grande.
-- Capturar cada pantalla en claro/oscuro; comparar con DOMI RENDER MOVIL.png. Ajustar tipografía, ondas, alturas, espacios y Safe Areas antes de declarar ≥95 %.
-- Verificar accesibilidad con VoiceOver, tamaños Dynamic Type grandes, Reducir movimiento y teclado decimal.
-- Validar hoja de compartir y archivo CSV resultante en iOS, ciclo de navegación, hojas y estados tras cancelar/volver.
+## Completado
+- Xcode 27.0 (27A266a) instalado y activo, SDK/runtime iOS 27.0.
+- Compilación Debug para simulador y Release para iPhone sin firma.
+- App instalada y ejecutada en simuladores iPhone 18 Pro e iPhone 17e.
+- Pruebas de lógica, recorrido de las ocho pantallas, filtros, consulta/bloqueo de tarjeta, envío demo, límites, invitación y hoja de compartir.
+- Capturas de las ocho pantallas en claro/oscuro, revisión visual y correcciones de espaciado, importes, logotipo, botones y barra inferior.
+- Auditoría de texto recortado en Tarjetas con tamaño accesible máximo; flujo de envío con ese tamaño.
 
-## Assets y diseño
-- Incorporar marca oficial vectorial para reemplazar reconstrucción tipográfica.
-- Ajustar icono/branding con el mismo asset oficial.
-- La referencia es una imagen compuesta de baja resolución por pantalla; solicitar originales si se exige medición de fidelidad precisa.
+## Pendientes de calidad y aceptación
+- Revisión manual integral con VoiceOver en dispositivo físico; las etiquetas y auditoría automática no sustituyen esta revisión.
+- Verificar todos los detalles y formularios en todos los tamaños Dynamic Type. Se ha probado tamaño máximo en Tarjetas y envío, no cada combinación de vista/tamaño.
+- Ejecutar en runtime iOS 26, mínimo soportado; el runtime instalado y probado es iOS 27.
+- Instalación en iPhone físico requiere seleccionar equipo de firma. No se ha firmado ni publicado la aplicación.
+- Comprobar entrega del CSV a una aplicación/destino externo elegido por el usuario; se ha validado el contenido con pruebas y la apertura de la hoja nativa, sin compartirlo con terceros.
+- Investigar si persiste el aviso de runtime «Invalid frame dimension (negative or non-finite)» observado durante transiciones de teclado en dos pruebas. Los flujos finalizaron correctamente; no se ha identificado una dimensión inválida en el código propio.
 
-## Mejoras de fase demo
-- Añadir pruebas UI/snapshots después de disponer de simulador y tamaños objetivo; las pruebas actuales son de dominio y view models.
+## Fidelidad visual
+- El logotipo sigue siendo una reconstrucción tipográfica; incorporar vector oficial para exactitud.
+- Se han comparado visualmente capturas con la referencia y corregido diferencias evidentes. No existe medición que certifique ≥95 % de similitud.
+- Las barras superiores usan controles nativos de iOS 27; su acabado difiere del render original. Conservar navegación nativa mientras se acuerda el nivel de reproducción exacta.
 - Confirmar alcance final de funciones adicionales con el grupo, según el documento original.
 
 ## Fuera de esta fase
-Backend Java/SurrealDB, auth, APIs, persistencia, sincronización, APNs, biometría real y operaciones monetarias. Ahorro, divisas, crédito y análisis de fraude pendientes de decisión de producto.
+Backend Java/SurrealDB, autenticación, APIs, persistencia, sincronización, APNs, biometría real y operaciones monetarias. Ahorro, divisas, crédito y análisis de fraude pendientes de decisión de producto.

@@ -35,9 +35,18 @@ La lógica de selección, filtrado, importes y envíos está separada en view mo
 ./scripts/test.sh
 ```
 
-Ocho pruebas de dominio/view models: importes, filtros, validación, simulación sin alterar saldo, bloqueo reversible, totales, CSV y errores. Se han ejecutado correctamente con Swift 6.4 en macOS. La sintaxis de todos los archivos y los plist del proyecto también se han validado.
+Nueve pruebas de dominio/view models: importes, filtros, validación, simulación sin alterar saldo, bloqueo reversible, totales, CSV y errores. Se han ejecutado correctamente con el compilador de Xcode 27.0. También se ha compilado la app en Debug para simulador y Release para iPhone (sin firma).
 
-**Pendiente:** este equipo no tiene Xcode ni SDK/simulador iOS. No se ha compilado ni ejecutado la aplicación iOS. La fidelidad del 95 %, VoiceOver, tamaños de pantalla y Dynamic Type requieren validación en simulador/dispositivo. El logotipo es una reconstrucción tipográfica, pendiente del vector oficial.
+La app se ha ejecutado en iPhone 18 Pro e iPhone 17e con iOS 27. Las seis pruebas de interfaz cubren navegación por las ocho pantallas, tarjeta, movimientos/exportación, envío, preferencias/cotitularidad y texto accesible máximo. El recorrido también se ejecuta en modo oscuro.
+
+```sh
+xcrun simctl list devices available
+./scripts/test-ui.sh UUID_DEL_SIMULADOR
+```
+
+En Xcode puedes ejecutar las pruebas de interfaz con **⌘U**. El esquema compartido incluye DominicanUITests. Consulta `output/qa/README.md` para capturas e informes.
+
+**Pendiente:** VoiceOver en dispositivo físico, runtime iOS 26 y cobertura de todos los tamaños de texto. La fidelidad del 95 % no está medida y el logotipo necesita el vector oficial. Los detalles están en `project_context/pending_tasks.md`.
 
 Con Xcode instalado:
 

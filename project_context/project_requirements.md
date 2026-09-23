@@ -25,4 +25,4 @@ BankAccount, BankCard, BankTransaction, Contact, AccountMember, SpendingCategory
 Objetivos de ahorro, conversión de divisas, préstamos/crédito, detalle del análisis de fraude (opcionales del PDF). Autenticación, REST/GraphQL, persistencia, sincronización y push reales. Consultar `decisions.md` para discrepancias.
 
 ## Criterios pendientes de aceptación
-Build iOS sin errores, todas las rutas operables en simulador, comparación visual ≥95 % (aún no medida), Dark Mode, texto accesible y VoiceOver. No sustituir estos criterios por resultados del paquete de dominio.
+Build iOS completado en Debug/Release. Recorrido de las ocho pantallas y flujos principales probado en dos simuladores con modo claro/oscuro. Texto máximo probado en Tarjetas y envío. Pendientes: comparación cuantitativa ≥95 %, VoiceOver manual y cobertura completa de tamaños accesibles. Los resultados reales están en `output/qa` y `progress_log.md`.
