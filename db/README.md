@@ -19,6 +19,16 @@ surreal start --username root --password root --bind 127.0.0.1:8099 --no-banner 
 ./db/demo/surql.sh db/demo/03_detect.surql
 ```
 
+Permisos, actuando como clientes y no como root (solo biblioteca estándar):
+
+```sh
+python3 db/demo/access_test.py       # 18 comprobaciones; --expiry espera la caducidad
+python3 db/demo/access_redteam.py    # rompe cada protección y exige que su test caiga
+```
+
+Usuarios de demo: `ana@dominican.test` / `demo-ana` (PIN 1234) y
+`luis@dominican.test` / `demo-luis` (PIN 5678).
+
 Para la demo en vivo, en una terminal aparte y antes de lanzar el ataque:
 
 ```sh
@@ -100,6 +110,68 @@ transacción, así que no pueden divergir. Dos modelos del mismo hecho convivien
 en una sola base sin ETL: ese es el argumento multi-modelo, y es la respuesta a
 la pregunta «¿por qué lo guardáis dos veces?».
 
+## Permisos: la autorización también es un grafo
+
+`root` se salta **todos** los permisos, así que mientras se trabajaba como root
+los permisos de campo sobre PAN y CVV estaban escritos pero no se podían
+demostrar. `db/schema/06_access.surql` añade usuarios de aplicación
+(`DEFINE ACCESS ... TYPE RECORD`, contraseñas y PIN con argon2) y desde ahí las
+pruebas se hacen como cliente, no como administrador.
+
+Los permisos se expresan como **travesía de grafo**: ves una cuenta si cuelga de
+una arista `owns` tuya.
+
+```surql
+DEFINE TABLE account ... PERMISSIONS FOR select WHERE id IN $auth.customer->owns->account;
+```
+
+La autorización usa el mismo modelo que la detección de fraude, en la misma
+base, sin tabla puente ni JOIN. Y la tarjeta tiene **tres** condiciones sobre la
+misma fila:
+
+1. la tarjeta se ve si su cuenta es tuya, como titular o cotitular;
+2. el PAN y el CVV solo los ve quien la **lleva** (`holder`), no cualquier
+   cotitular: en una cuenta conjunta cada tarjeta sigue siendo personal;
+3. y además con una verificación por PIN vigente, que caduca sola a los 90 s.
+
+Sin la condición 2, un cotitular verificado vería el PAN de la tarjeta del otro.
+Ese fallo estaba en la primera versión y lo destapó pensar en la cotitularidad
+antes de escribir la demo.
+
+### La verificación por PIN, y por qué no es una función
+
+Abrir la ventana exige escribir `app_user.verified_until`, y el usuario no tiene
+permiso de escritura sobre su propia ficha (a propósito: si lo tuviera, se
+pondría `verified_until` en el año 3000 él solo).
+
+La primera versión usaba una `DEFINE FUNCTION`. **No funciona**: una función se
+ejecuta con los permisos de quien la llama, así que su `UPDATE` no hacía nada.
+Y lo peor es que la función **devolvía `true` igualmente**. Un fallo silencioso
+que diría «verificado» sin haber verificado.
+
+La solución idiomática es un `EVENT`, que se ejecuta sin comprobar permisos. El
+usuario solo puede *crear* una petición; el evento compara el PIN con el hash y
+únicamente entonces abre la ventana. La petición se borra siempre, para que el
+PIN en claro no se quede en la base. El usuario puede **provocar** la escritura
+privilegiada, pero no **falsificarla**.
+
+### Cómo se ha probado
+
+`db/demo/access_test.py` actúa como ana y como luis: 18 comprobaciones entre
+casos positivos, negativos y ataques (alargarse la ventana a mano, cambiarse de
+titular, pedir la verificación de otro, leer hashes, ver cuentas o alertas
+ajenas). Con `--expiry` espera 91 s y comprueba que el PAN vuelve a ocultarse.
+
+Pero un test que no has visto fallar no vigila nada. `db/demo/access_redteam.py`
+**rompe a propósito** cada protección sobre una base limpia y comprueba que el
+test que la vigila cae: **9/9 roturas detectadas**.
+
+Hacerlo destapó dos tests que habrían pasado con el fallo puesto. El usuario no
+tiene permiso de lectura sobre `step_up`, así que tanto «el PIN no queda
+guardado» como «no puedes pedir la verificación de otro» devolvían vacío pasara
+lo que pasara. Ahora se comprueba el **efecto real**, mirando como root: lo que
+un usuario no puede leer no demuestra que no exista.
+
 ## Limitaciones que conviene declarar
 
 - **`LIVE SELECT` solo funciona en despliegue de un nodo.** Esto contradice el
@@ -107,9 +179,8 @@ la pregunta «¿por qué lo guardáis dos veces?».
   a la vez. Es más sólido decirlo que esconderlo.
 - Los eventos síncronos añaden coste a cada escritura. Es un compromiso asumido,
   no un descuido.
-- Los permisos a nivel de campo sobre PAN y CVV dependen de que exista
-  autenticación real (`DEFINE ACCESS`). Mientras se trabaje como `root`, no se
-  aplican: root los ve todos.
+- La alerta de dispositivo compartido no la ve ningún cliente, solo el banco:
+  afecta a varios titulares a la vez y enseñársela a uno revelaría a los demás.
 
 ## Trampas de SurrealQL encontradas al ejecutar
 
@@ -127,6 +198,8 @@ Ninguna de estas aparece leyendo el código; todas salieron corriéndolo.
 | `SELECT ... FOR UPDATE` | — | No existe hasta 3.3 |
 | `surreal sql < fichero.surql` | `POST /sql` con el fichero entero | La CLI procesa línea a línea y rompe toda sentencia multilínea |
 | enviar cabeceras y ya | `DEFINE NAMESPACE` / `DEFINE DATABASE` | En 3.x no se crean solas: «The database 'x' does not exist» |
+| escritura privilegiada en `DEFINE FUNCTION` | `DEFINE EVENT` | La función corre con los permisos del que llama: el `UPDATE` no hace nada **y la función devuelve éxito** |
+| comprobar un ataque leyendo como el usuario | comprobar el efecto como root | Sin permiso de lectura, el usuario ve `[]` exista o no la fila: el test pasa con el fallo puesto |
 
 Además, dos sutilezas de datos: `math::sum` de un conjunto vacío devuelve el
 entero `0`, no `0dec`, así que las comparaciones usan `!=` (tolerante al tipo) y
@@ -144,8 +217,6 @@ orden.
 
 ## Pendiente
 
-- `DEFINE ACCESS` y usuarios reales, para que los permisos de campo sobre
-  PAN/CVV se puedan demostrar con dos sesiones distintas.
 - Generador de volumen (decenas de miles de movimientos) para medir los
   detectores con datos de verdad y no con cinco cuentas.
 - Comparativa medida de la detección de anillos en SurrealQL frente a un CTE

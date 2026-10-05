@@ -2,7 +2,7 @@
 -- IBAN no válidos a propósito. Ningún dato real.
 
 DELETE fraud_alert; DELETE card_payment; DELETE transfer; DELETE uses;
-DELETE owns; DELETE favorite; DELETE entry; DELETE txn;
+DELETE owns; DELETE favorite; DELETE entry; DELETE txn; DELETE app_user;
 DELETE card; DELETE device; DELETE account; DELETE customer;
 
 -- Contrapartida externa: sin ella, una nómina no podría cuadrar a cero.
@@ -37,8 +37,20 @@ RETURN fn::credit(account:marta, 6000.00dec, 'payroll');
 RETURN fn::credit(account:jose, 30000.00dec, 'payroll');
 RETURN fn::credit(account:sara, 12000.00dec, 'payroll');
 
-CREATE card:ana  SET account = account:ana,  pan_last4 = '4242', pan = '4111111111114242', cvv = '123';
-CREATE card:luis SET account = account:luis, pan_last4 = '1010', pan = '4111111111111010', cvv = '456';
+-- card:ana cuelga de la cuenta CONJUNTA de ana y luis, pero la lleva ana.
+CREATE card:ana  SET account = account:ana,  holder = customer:ana,
+                     pan_last4 = '4242', pan = '4111111111114242', cvv = '123';
+CREATE card:luis SET account = account:luis, holder = customer:luis,
+                     pan_last4 = '1010', pan = '4111111111111010', cvv = '456';
+
+-- Usuarios de la app. Contraseñas de demo, hasheadas con argon2: la base
+-- nunca guarda la contraseña en claro.
+CREATE app_user:ana  SET email = 'ana@dominican.test',  customer = customer:ana,
+                         pass = crypto::argon2::generate('demo-ana'),
+                         pin  = crypto::argon2::generate('1234');
+CREATE app_user:luis SET email = 'luis@dominican.test', customer = customer:luis,
+                         pass = crypto::argon2::generate('demo-luis'),
+                         pin  = crypto::argon2::generate('5678');
 
 CREATE device:movil_ana  SET fingerprint = 'iPhone15,2/es_ES/a1b2c3';
 CREATE device:movil_sara SET fingerprint = 'SM-A515F/es_ES/d4e5f6';

@@ -44,8 +44,11 @@ WHEN $event = "CREATE" THEN {
         LET $m = geo::distance($prev.loc, $after.loc);
         LET $s = duration::secs($after.at - $prev.at);
         IF $s > 0 AND ($m / $s) > 250 {
+            -- `account` además de `card`: el permiso de lectura de fraud_alert
+            -- va por cuenta. Sin él, el titular no vería la alerta sobre su
+            -- propia tarjeta.
             CREATE fraud_alert SET kind = 'impossible_travel', score = 0.9,
-                card = $after.card,
+                card = $after.card, account = $after.card.account,
                 detail = { km: $m / 1000, secs: $s, kmh: ($m / $s) * 3.6 };
         };
     };

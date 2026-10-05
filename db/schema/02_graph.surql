@@ -31,7 +31,11 @@ DEFINE FIELD OVERWRITE at     ON card_payment TYPE datetime DEFAULT time::now();
 DEFINE FIELD OVERWRITE loc    ON card_payment TYPE geometry<point>;
 DEFINE INDEX OVERWRITE cp_by_card ON card_payment FIELDS card, at;
 
-DEFINE TABLE OVERWRITE fraud_alert SCHEMALESS TYPE NORMAL;
+-- El titular ve solo las alertas de sus propias cuentas. Los eventos que las
+-- crean se saltan los permisos, que es justo lo que se necesita: el detector
+-- escribe siempre, el usuario lee solo lo suyo.
+DEFINE TABLE OVERWRITE fraud_alert SCHEMALESS TYPE NORMAL
+    PERMISSIONS FOR select WHERE account IN $auth.customer->owns->account;
 DEFINE FIELD OVERWRITE kind  ON fraud_alert TYPE string;
 DEFINE FIELD OVERWRITE score ON fraud_alert TYPE float;
 DEFINE FIELD OVERWRITE at    ON fraud_alert TYPE datetime VALUE time::now() READONLY;

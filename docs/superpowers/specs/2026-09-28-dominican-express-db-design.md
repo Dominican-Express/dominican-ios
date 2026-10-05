@@ -49,16 +49,18 @@ hace que las alertas aparezcan según ocurren.
 - `LIVE SELECT` solo funciona en un nodo, lo que contradice el argumento de
   escalabilidad distribuida del documento original. Se declara en la memoria.
 - Los eventos síncronos encarecen cada escritura.
-- Los permisos de campo sobre PAN y CVV no se aplican mientras se trabaje como
-  `root`. Necesitan `DEFINE ACCESS` para ser demostrables.
+## Hecho después (2026-10-05)
+
+Autenticación con `DEFINE ACCESS`, permisos expresados como travesía de grafo y
+verificación por PIN mediante `EVENT`. Probado como cliente, con prueba en rojo
+de cada protección. Detalle en `db/README.md`, sección «Permisos».
 
 ## Siguientes pasos
 
-1. `DEFINE ACCESS` y usuarios reales, para la demo de PAN/CVV con dos sesiones.
-2. Generador de volumen, para medir los detectores con datos de verdad.
-3. Comparativa medida contra un CTE recursivo en PostgreSQL, incluyendo los
+1. Generador de volumen, para medir los detectores con datos de verdad.
+2. Comparativa medida contra un CTE recursivo en PostgreSQL, incluyendo los
    casos donde SurrealDB no gana.
-4. Reintento ante conflicto de escritura en el cliente.
+3. Reintento ante conflicto de escritura en el cliente.
 
 ## Decisión abierta
 
