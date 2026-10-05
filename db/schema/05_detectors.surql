@@ -32,12 +32,12 @@ DEFINE FUNCTION OVERWRITE fn::detect_rings($max_hops: int) {
 -- ---------------------------------------------------------------------------
 -- 2. DISPOSITIVO COMPARTIDO: varias identidades desde el mismo aparato.
 DEFINE FUNCTION OVERWRITE fn::detect_shared_devices($min: int) {
-    LET $found = (SELECT id, fingerprint, <-uses<-customer AS titulares
+    LET $found = (SELECT id, fingerprint, <-uses<-customer AS holders
                   FROM device WHERE count(<-uses<-customer) >= $min);
     FOR $d IN $found {
         CREATE fraud_alert SET kind = 'shared_device', score = 0.75,
             device = $d.id,
-            detail = { fingerprint: $d.fingerprint, titulares: $d.titulares };
+            detail = { fingerprint: $d.fingerprint, holders: $d.holders };
     };
     RETURN count($found);
 };
@@ -59,7 +59,7 @@ DEFINE FUNCTION OVERWRITE fn::detect_structuring($floor: decimal, $ceil: decimal
         IF $s.n >= $min_ops {
             CREATE fraud_alert SET kind = 'structuring', score = 0.7,
                 account = $s.account,
-                detail = { ops: $s.n, total: $s.total, ventana: '24h' };
+                detail = { ops: $s.n, total: $s.total, window: '24h' };
         };
     };
     RETURN count($found);

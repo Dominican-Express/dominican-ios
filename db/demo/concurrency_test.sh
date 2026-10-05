@@ -35,5 +35,9 @@ for r in $(seq 1 $REPS); do
     BAD=$((BAD+1)); echo "  ronda $r -> saldo $L   DESCUBIERTO"
   fi
 done
-echo "fn::$FN  ->  $BAD/$REPS rondas con descubierto  ($N transferencias simultáneas por ronda)"
+if [[ "$DEMO_LANG" == "en" ]]; then
+  echo "fn::$FN  ->  $BAD/$REPS rounds ended in an overdraft"
+else
+  echo "fn::$FN  ->  $BAD/$REPS rondas con descubierto  ($N transferencias simultáneas por ronda)"
+fi
 rm -f /tmp/dx_*_$$.surql
