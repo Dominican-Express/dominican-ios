@@ -12,7 +12,7 @@
 - Barra inferior de cinco destinos persistentes. Se usa barra propia con controles accesibles para conservar la geometría de la referencia frente al estilo flotante del sistema reciente.
 - Deployment target iOS 26.0, SDKROOT iphoneos sin fijar SDK, Swift 6. Se abre con Xcode estable que incluya iOS 26 o superior. La versión exacta estable debe comprobarse al instalar Xcode; los resultados web disponibles no permiten asegurar el último parche a fecha de trabajo.
 - No existe Xcode.app ni SDK de iOS en este equipo; solo Command Line Tools (Swift 6.4). No es posible certificar compilación iOS ni fidelidad del 95% sin ejecutar y comparar capturas. Se entrega proyecto Xcode y se registra esta limitación, sin declarar verificaciones no realizadas.
-- Estado efímero en memoria, reiniciable al cerrar; repositorio inyectado mediante protocolo Sendable. SurrealDB/Java quedan exclusivamente en notas de integración futura.
+- Estado efímero en memoria, reiniciable al cerrar; repositorio inyectado mediante protocolo Sendable. SurrealDB queda en las notas de integración futura (sin Java: se decidió el 2026-10-19 que la app hable directamente con la base).
 
 ## Cierre de implementación
 - Swift Package utiliza tools 6.2; el proyecto mantiene lenguaje Swift 6.0. No se necesita Swift 6.4 para el código de aplicación.

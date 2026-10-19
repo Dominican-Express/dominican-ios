@@ -1,7 +1,7 @@
 # Dominican Express — contexto de continuidad
 
 ## Objetivo
-Demo bancaria nativa para iPhone, SwiftUI/MVVM, que reproduce ocho pantallas de la referencia. Proyecto académico UFV de Bases de Datos Avanzadas. El backend Java/SurrealDB pertenece a una fase futura.
+Demo bancaria nativa para iPhone, SwiftUI/MVVM, que reproduce ocho pantallas de la referencia. Proyecto académico UFV de Bases de Datos Avanzadas. La conexión con SurrealDB (sin backend Java, decidido el 2026-10-19) pertenece a una fase futura.
 
 ## Fuentes de verdad
 1. `Dominican Express — Funcionalidades y Justificación de SurrealDB.pdf`, 3 páginas, fecha 2026-09-21. Leído completo; páginas renderizadas e inspeccionadas.

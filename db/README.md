@@ -24,17 +24,22 @@ Permisos, actuando como clientes y no como root (solo biblioteca estándar):
 ```sh
 python3 db/demo/access_test.py       # 18 comprobaciones; --expiry espera la caducidad
 python3 db/demo/access_redteam.py    # rompe cada protección y exige que su test caiga
+python3 db/demo/payments_test.py     # API de pagos; --race añade la concurrencia
+python3 db/demo/payments_redteam.py  # rompe cada protección de la API, sobre el fichero real
 ```
 
-Usuarios de demo: `ana@dominican.test` / `demo-ana` (PIN 1234) y
-`luis@dominican.test` / `demo-luis` (PIN 5678).
+Usuarios de demo: `ana@dominican.test` / `demo-ana` (PIN 1234),
+`luis@dominican.test` / `demo-luis` (PIN 5678) y
+`marta@dominican.test` / `demo-marta` (PIN 2468). Teléfonos de Bizum:
+`+34600000001` (ana) a `+34600000005` (sara).
 
 Para la demo en vivo, en una terminal aparte y antes de lanzar el ataque:
 
 ```sh
-pip install websockets
-python3 db/demo/live_listener.py
+uv run --with websockets python3 db/demo/live_listener.py
 ```
+
+Todo de una vez, con subcomandos: `./db/demo/demo.sh` (sin argumentos lista los pasos).
 
 ## El principio que gobierna el diseño
 
@@ -172,6 +177,66 @@ guardado» como «no puedes pedir la verificación de otro» devolvían vacío p
 lo que pasara. Ahora se comprueba el **efecto real**, mirando como root: lo que
 un usuario no puede leer no demuestra que no exista.
 
+## La API, dentro de la base de datos
+
+**No hay backend intermedio.** El documento original proponía Java delante de
+SurrealDB; se descartó, porque SurrealDB 3 ya trae lo que haría ese backend:
+usuarios de la app con su propio token, permisos por registro y por campo, y
+endpoints HTTP definidos en SurrealQL (`DEFINE API`, estable desde la 3.0).
+Toda la lógica de negocio vive en un solo sitio. Código: `schema/07_api.surql`.
+
+**Dos caminos, a propósito:**
+
+- **Las lecturas** son consultas normales, filtradas por los permisos de grafo.
+- **Las escrituras privilegiadas** (mover dinero, añadir contactos) pasan por
+  endpoints: `POST /api/<ns>/<db>/transfers`, `/bizum` y `/contacts`.
+
+¿Por qué no todo por endpoints? El cuerpo de un `DEFINE API` se ejecuta **sin
+comprobar permisos**. Si las lecturas pasaran por ahí, la protección del CVV o
+de las cuentas ajenas dependería de que cada endpoint la repitiera bien.
+Dejándolas en los permisos, la base las aplica siempre. Por esa misma razón,
+cada endpoint comprueba por sí mismo quién llama y qué es suyo.
+
+Y ¿por qué endpoints y no un evento, como el PIN? Un endpoint devuelve códigos
+HTTP de verdad (201, 403, 404, 409, 422) y **puede guardar algo aunque rechace
+la petición**: las órdenes rechazadas quedan registradas, y un intento de pagar
+desde una cuenta ajena es justo lo que hay que poder auditar. Con un evento,
+rechazar es lanzar un error, y el error deshace también el registro.
+
+**Las órdenes de pago** (`payment_order`) son a la vez el registro de
+auditoría y la **clave de idempotencia**. Su id lo elige la app, un UUID por
+intento. Si se corta la red y la app repite la orden con el mismo id, recibe la
+respuesta original en vez de pagar dos veces. Si dos copias llegan a la vez,
+escriben el mismo registro y chocan: la idempotencia sale del mismo mecanismo
+que evita los descubiertos.
+
+**El reintento es obligatorio** y es del cliente. Un conflicto de escritura
+deshace la transacción entera; repetirla con el mismo id es seguro. Medido en
+una carrera de 10 órdenes por todo el saldo: **sin reintento, 5 de las 10
+acaban en conflicto**. Con reintento, siempre una se cumple y las otras nueve
+se rechazan por falta de saldo, sin ningún conflicto sin resolver. Ojo:
+SurrealDB 3.2 devuelve ese conflicto como **HTTP 400**, que parece un error del
+cliente; el reintento lo reconoce por el texto (`api()` en `demo/session.py`).
+
+**Los importes viajan como texto** (`"12.50"`). Un número JSON es coma flotante
+y el dinero no lo es, así que el endpoint rechaza un número con 400.
+
+### Cómo se ha probado
+
+`payments_test.py` actúa como clientes. Hace **35 comprobaciones** (32 sin `--race`), mirando siempre
+el efecto real como root (saldos, apuntes, órdenes) y no solo la respuesta: un
+endpoint que dijera «rechazado» y moviera el dinero igualmente pasaría si solo
+se mirara lo que contesta. Con `--race`, además, verifica 10 rondas de 10
+órdenes simultáneas y 10 rondas de 10 copias de la **misma** orden: en las
+segundas se paga una sola vez y las diez copias reciben 201.
+
+`payments_redteam.py` aplica el esquema real con una línea rota cada vez, por
+sustitución de texto exacto sobre el fichero, y exige que caiga la prueba que
+la vigila: **11/11**. Destapó un fallo de la propia prueba: con la comprobación
+de saldo quitada, el endpoint respondía con un error en texto en vez de un
+objeto, y la prueba se caía a medias sin decir qué había fallado. Un test que
+se rompe no es un test que falla.
+
 ## Limitaciones que conviene declarar
 
 - **`LIVE SELECT` solo funciona en despliegue de un nodo.** Esto contradice el
@@ -181,6 +246,16 @@ un usuario no puede leer no demuestra que no exista.
   no un descuido.
 - La alerta de dispositivo compartido no la ve ningún cliente, solo el banco:
   afecta a varios titulares a la vez y enseñársela a uno revelaría a los demás.
+- Un JSON **malformado** en un endpoint sale como 500, no como 400: el
+  decodificador lanza un error y SurrealQL no tiene try/catch. Las apps siempre
+  mandan JSON serializado, así que no afecta al uso normal.
+- Los clientes pueden lanzar consultas libres de **lectura**. Los permisos
+  limitan lo que ven, pero no lo que cuesta: una consulta enorme gasta CPU. En
+  producción se cerrarían con `--deny-arbitrary-query record`, pasando a
+  endpoints también las lecturas y repitiendo en ellos cada comprobación. Para
+  este proyecto pesa más que la base aplique los permisos siempre.
+- Añadir un contacto por teléfono revela si ese número es cliente del banco. Es
+  lo mismo que hace Bizum.
 
 ## Trampas de SurrealQL encontradas al ejecutar
 
@@ -200,6 +275,11 @@ Ninguna de estas aparece leyendo el código; todas salieron corriéndolo.
 | enviar cabeceras y ya | `DEFINE NAMESPACE` / `DEFINE DATABASE` | En 3.x no se crean solas: «The database 'x' does not exist» |
 | escritura privilegiada en `DEFINE FUNCTION` | `DEFINE EVENT` | La función corre con los permisos del que llama: el `UPDATE` no hace nada **y la función devuelve éxito** |
 | comprobar un ataque leyendo como el usuario | comprobar el efecto como root | Sin permiso de lectura, el usuario ve `[]` exista o no la fila: el test pasa con el fallo puesto |
+| `api::req::body("json")` | sin lector, y `encoding::json::decode(<string>$request.body)` | Convierte en tipos lo que lo parece: `"account:ana"` llega como registro, una fecha ISO como fecha, y **`"Cena: viernes"` como el registro `Cena:viernes`, sin el espacio** |
+| `api::req::max_body("16kb")` | `bytes::len($raw) > 16384` | La documentación lo lista, pero la 3.2.4 no lo tiene: «no such builtin function found» |
+| devolver un objeto como `body` | `MIDDLEWARE api::res::body("json")` | Sin él: «HTTP API response body must be None, bytes, or string» |
+| reintentar solo los 5xx | reconocer el conflicto por su texto | El conflicto de escritura llega como **400** |
+| `type::is::string(…)` | `type::is_string(…)` | Otro anidamiento `::` aplanado en 3.x |
 
 Además, dos sutilezas de datos: `math::sum` de un conjunto vacío devuelve el
 entero `0`, no `0dec`, así que las comparaciones usan `!=` (tolerante al tipo) y
@@ -222,5 +302,6 @@ orden.
 - Comparativa medida de la detección de anillos en SurrealQL frente a un CTE
   recursivo equivalente en PostgreSQL, incluyendo los casos donde SurrealDB
   **no** gana.
-- Reintento en el cliente ante conflicto de escritura: el conflicto está pensado
-  para reintentarse, no es un error terminal.
+- Bloqueo de tarjeta que se aplique (hoy el campo `blocked` existe y nada lo
+  comprueba), límites de gasto configurables, límite de intentos del PIN y
+  notificaciones.

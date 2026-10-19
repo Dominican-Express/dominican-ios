@@ -6,7 +6,13 @@
 -- pueden divergir. Dos modelos del mismo hecho en una sola base, sin ETL:
 -- ese es el argumento multi-modelo, y es la respuesta a "¿por qué dos veces?".
 
-DEFINE TABLE OVERWRITE owns TYPE RELATION IN customer OUT account ENFORCED;
+-- Las aristas también llevan permisos: una consulta del cliente que recorre
+-- el grafo solo atraviesa las aristas que puede leer.
+
+-- Ves las aristas de titularidad de TUS cuentas: así la pantalla de cuenta
+-- compartida puede listar a los cotitulares y su rol.
+DEFINE TABLE OVERWRITE owns TYPE RELATION IN customer OUT account ENFORCED
+    PERMISSIONS FOR select WHERE out IN $auth.customer->owns->account;
 DEFINE FIELD OVERWRITE role ON owns TYPE string ASSERT $value IN ['titular','cotitular'];
 -- Cotitularidad = atributo en la ARISTA, no tabla puente.
 
@@ -20,7 +26,10 @@ DEFINE TABLE OVERWRITE device SCHEMAFULL TYPE NORMAL;
 DEFINE FIELD OVERWRITE fingerprint ON device TYPE string;
 DEFINE TABLE OVERWRITE uses TYPE RELATION IN customer OUT device ENFORCED;
 
-DEFINE TABLE OVERWRITE favorite TYPE RELATION IN customer OUT customer ENFORCED;
+-- Contactos frecuentes. Solo ves los tuyos; se crean por POST /contacts.
+DEFINE TABLE OVERWRITE favorite TYPE RELATION IN customer OUT customer ENFORCED
+    PERMISSIONS FOR select WHERE in = $auth.customer;
+DEFINE INDEX OVERWRITE favorite_pair ON favorite FIELDS in, out UNIQUE;
 
 -- Pagos con tarjeta, con geolocalización para el detector de viaje imposible.
 DEFINE TABLE OVERWRITE card_payment SCHEMAFULL TYPE NORMAL;

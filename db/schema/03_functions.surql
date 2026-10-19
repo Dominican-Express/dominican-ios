@@ -2,10 +2,16 @@
 --
 -- El invariante de partida doble vive AQUÍ y solo aquí. Ningún cliente
 -- escribe apuntes a mano.
+--
+-- Todas son `PERMISSIONS NONE`: ningún usuario de la app puede llamarlas
+-- directamente. Las usan root (scripts), los eventos y los endpoints de
+-- 07_api.surql, que comprueban antes quién llama y qué es suyo. Llamada por
+-- un cliente, una función correría además con SUS permisos y no podría
+-- escribir los apuntes: el endpoint es el único camino.
 
 DEFINE FUNCTION OVERWRITE fn::balance($acc: record<account>) {
     RETURN math::sum(SELECT VALUE amount FROM entry WHERE account = $acc);
-};
+} PERMISSIONS NONE;
 
 -- Transferencia SEGURA.
 --
@@ -15,15 +21,17 @@ DEFINE FUNCTION OVERWRITE fn::balance($acc: record<account>) {
 -- de abajo no es decorativo: al escribir el registro de la cuenta, crea el
 -- conflicto write-write que impide el descubierto por carrera.
 -- Medido: 0/30 descubiertos con esta función, 7/30 sin ella. Ver db/README.md.
-DEFINE FUNCTION OVERWRITE fn::transfer($from: record<account>, $to: record<account>, $amount: decimal) {
+DEFINE FUNCTION OVERWRITE fn::transfer($from: record<account>, $to: record<account>, $amount: decimal,
+                                       $kind: option<string>, $concept: option<string>) {
     IF $amount <= 0dec { THROW "El importe debe ser positivo" };
+    IF $from = $to { THROW "Origen y destino son la misma cuenta" };
     LET $f = (SELECT * FROM ONLY $from);
     LET $t = (SELECT * FROM ONLY $to);
     IF $f = NONE OR $t = NONE { THROW "Cuenta inexistente" };
     IF $f.currency != $t.currency { THROW "Divisas distintas" };
     IF fn::balance($from) < $amount { THROW "Saldo insuficiente" };
 
-    LET $tx = (CREATE ONLY txn SET kind = 'transfer');
+    LET $tx = (CREATE ONLY txn SET kind = $kind ?? 'transfer', concept = $concept);
     CREATE entry SET account = $from, txn = $tx.id, amount = -$amount;
     CREATE entry SET account = $to,   txn = $tx.id, amount =  $amount;
 
@@ -35,7 +43,7 @@ DEFINE FUNCTION OVERWRITE fn::transfer($from: record<account>, $to: record<accou
     UPDATE $to   SET balance += $amount;
     RELATE $from->transfer->$to SET amount = $amount, txn = $tx.id;
     RETURN $tx.id;
-};
+} PERMISSIONS NONE;
 
 -- Ingreso desde fuera del banco (nómina, recarga). La contrapartida es
 -- `account:ext`, sin la cual el asiento no podría cuadrar a cero.
@@ -47,7 +55,7 @@ DEFINE FUNCTION OVERWRITE fn::credit($to: record<account>, $amount: decimal, $ki
     UPDATE account:ext SET balance -= $amount;
     UPDATE $to         SET balance += $amount;
     RETURN $tx.id;
-};
+} PERMISSIONS NONE;
 
 -- Cargo con fecha pasada, para el generador de histórico. Mantiene la partida
 -- doble y el saldo materializado: sin esto, sembrar datos "a mano" descuadra
@@ -60,7 +68,7 @@ DEFINE FUNCTION OVERWRITE fn::debit_at($from: record<account>, $amount: decimal,
     UPDATE $from        SET balance -= $amount;
     UPDATE account:ext  SET balance += $amount;
     RETURN $tx.id;
-};
+} PERMISSIONS NONE;
 
 -- ---------------------------------------------------------------------------
 -- CONTROL EXPERIMENTAL. No usar en la app.
@@ -73,4 +81,4 @@ DEFINE FUNCTION OVERWRITE fn::transfer_unsafe($from: record<account>, $to: recor
     CREATE entry SET account = $from, txn = $tx.id, amount = -$amount;
     CREATE entry SET account = $to,   txn = $tx.id, amount =  $amount;
     RETURN $tx.id;
-};
+} PERMISSIONS NONE;

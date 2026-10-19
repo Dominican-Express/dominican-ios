@@ -2,23 +2,30 @@
 -- IBAN no válidos a propósito. Ningún dato real.
 
 DELETE fraud_alert; DELETE card_payment; DELETE transfer; DELETE uses;
-DELETE owns; DELETE favorite; DELETE entry; DELETE txn; DELETE app_user;
+DELETE owns; DELETE favorite; DELETE entry; DELETE txn; DELETE app_user; DELETE payment_order;
 DELETE card; DELETE device; DELETE account; DELETE customer;
 
 -- Contrapartida externa: sin ella, una nómina no podría cuadrar a cero.
 CREATE account:ext SET iban = 'ES0000000000000000000000', kind = 'external';
 
-CREATE customer:ana   SET name = 'Ana García',    nif = '00000001A';
-CREATE customer:luis  SET name = 'Luis Romero',   nif = '00000002B';
-CREATE customer:marta SET name = 'Marta Sanz',    nif = '00000003C';
-CREATE customer:jose  SET name = 'José Iglesias', nif = '00000004D';
-CREATE customer:sara  SET name = 'Sara Nuño',     nif = '00000005E';
+CREATE customer:ana   SET name = 'Ana García',    nif = '00000001A', phone = '+34600000001';
+CREATE customer:luis  SET name = 'Luis Romero',   nif = '00000002B', phone = '+34600000002';
+CREATE customer:marta SET name = 'Marta Sanz',    nif = '00000003C', phone = '+34600000003';
+CREATE customer:jose  SET name = 'José Iglesias', nif = '00000004D', phone = '+34600000004';
+CREATE customer:sara  SET name = 'Sara Nuño',     nif = '00000005E', phone = '+34600000005';
 
 CREATE account:ana   SET iban = 'ES1111111111111111111111';
 CREATE account:luis  SET iban = 'ES2222222222222222222222';
 CREATE account:marta SET iban = 'ES3333333333333333333333';
 CREATE account:jose  SET iban = 'ES4444444444444444444444';
 CREATE account:sara  SET iban = 'ES5555555555555555555555';
+
+-- Cuenta de Bizum de cada cliente. La de ana es la conjunta con luis.
+UPDATE customer:ana   SET bizum_account = account:ana;
+UPDATE customer:luis  SET bizum_account = account:luis;
+UPDATE customer:marta SET bizum_account = account:marta;
+UPDATE customer:jose  SET bizum_account = account:jose;
+UPDATE customer:sara  SET bizum_account = account:sara;
 
 -- Cotitularidad: el rol vive en la ARISTA.
 RELATE customer:ana->owns->account:ana   SET role = 'titular';
@@ -51,6 +58,11 @@ CREATE app_user:ana  SET email = 'ana@dominican.test',  customer = customer:ana,
 CREATE app_user:luis SET email = 'luis@dominican.test', customer = customer:luis,
                          pass = crypto::argon2::generate('demo-luis'),
                          pin  = crypto::argon2::generate('5678');
+-- marta no comparte nada con ana ni con luis: es la tercera persona de las
+-- pruebas de permisos y de pagos.
+CREATE app_user:marta SET email = 'marta@dominican.test', customer = customer:marta,
+                          pass = crypto::argon2::generate('demo-marta'),
+                          pin  = crypto::argon2::generate('2468');
 
 CREATE device:movil_ana  SET fingerprint = 'iPhone15,2/es_ES/a1b2c3';
 CREATE device:movil_sara SET fingerprint = 'SM-A515F/es_ES/d4e5f6';

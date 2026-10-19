@@ -49,6 +49,51 @@ def last(token, sql):
     return st["result"] if st["status"] == "OK" else f"ERROR: {st['result']}"
 
 
+def api(token, path, body, retries=5):
+    """POST a un endpoint de 07_api.surql. Devuelve (código HTTP, cuerpo JSON).
+
+    Reintenta solo los CONFLICTOS de escritura: dos transacciones han tocado el
+    mismo registro y una se ha deshecho entera. Repetir es seguro porque la
+    orden lleva su propio id: si la primera llegó a confirmarse, el reintento
+    recibe esa misma respuesta en vez de pagar otra vez. Cualquier otro error
+    se devuelve tal cual, sin reintentar."""
+    import time
+    req_body = json.dumps(body).encode()
+    headers = {"Accept": "application/json", "Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    for attempt in range(retries + 1):
+        req = urllib.request.Request(f"{URL}/api/{NS}/{DB}{path}", data=req_body,
+                                     method="POST", headers=headers)
+        try:
+            with urllib.request.urlopen(req) as r:
+                return r.status, _as_obj(json.loads(r.read() or b"null"))
+        except urllib.error.HTTPError as e:
+            raw = e.read().decode()
+            # OJO: SurrealDB 3.2 devuelve el conflicto como 400 («Transaction
+            # conflict: Write conflict, retry the transaction»), no como 5xx.
+            # Por el código parece un error del cliente; se reconoce por el texto.
+            if _is_conflict(raw) and attempt < retries:
+                time.sleep(0.01 * (2 ** attempt))   # espera creciente
+                continue
+            try:
+                return e.code, _as_obj(json.loads(raw))
+            except ValueError:
+                return e.code, {"raw": raw[:300]}
+
+
+def _as_obj(v):
+    # Un error lanzado dentro de un endpoint llega como un TEXTO JSON, no como
+    # objeto. Se envuelve para que quien lo lea con .get() no reviente: una
+    # prueba que se cae a medias no dice qué ha fallado.
+    return v if isinstance(v, dict) else {"raw": v}
+
+
+def _is_conflict(raw):
+    low = raw.lower()
+    return "transaction conflict" in low and "can be retried" in low
+
+
 def root_last(sql):
     """Lo mismo, como root. Solo para OBSERVAR el efecto real de un ataque:
     lo que un usuario no puede leer no demuestra que no exista."""
