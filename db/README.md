@@ -285,6 +285,59 @@ llega tarde, pero no se pierde.
 
 `demo/cards_test.py`: **41 comprobaciones**. `demo/cards_redteam.py`: **12/12**.
 
+## Volumen: lo que solo se ve con datos de verdad
+
+`demo/gen_volume.py` genera un banco con vida normal (nóminas, contactos
+frecuentes, amigos que se devuelven dinero, pagos con tarjeta en su ciudad,
+viajes en tren, cuentas conjuntas, familias con una tablet común) y **planta
+fraude conocido**, guardando qué se plantó. `demo/bench.py` mide cada detector
+en tiempo y en acierto contra esa verdad. `demo/write_bench.py` mide la ruta de
+pago. Reproducible: la misma semilla da el mismo banco.
+
+**Hallazgo 1: el detector de anillos original no servía.** A 100 clientes
+tardaba **54 s y marcaba 75 cuentas inocentes**, porque dos amigos que se
+devuelven dinero ya forman un ciclo y cada transferencia repetida multiplica
+los caminos. El nuevo busca lo que de verdad define un anillo: el mismo dinero
+reenviado, en menos de 48 h y con una comisión de hasta el 15 %, por 3 o más
+cuentas. **Sobre el mismo banco: 0,03 s y 0 falsos positivos.** El viejo se
+conserva como `fn::detect_rings_naive` para poder repetir la comparación.
+
+**Hallazgo 2: la escritura no escalaba**, y la causa es una trampa de SurrealDB
+3.2. Comparar en un `WHERE` con el **campo de una variable**
+(`WHERE txn = $tx.id`) hace que el planificador ignore el índice y recorra la
+tabla entera; con una variable simple (`LET $txid = $tx.id; … WHERE txn =
+$txid`) usa el índice. `EXPLAIN` lo muestra: `TableScan` frente a `IndexScan`.
+Pasaba en el cuadre del asiento, en los eventos de velocidad y de viaje
+imposible y en el detector de anillos. A 1.000 clientes:
+
+| | Antes | Después |
+|---|---|---|
+| `fn::transfer` | 72 ms | 1,2 ms |
+| Generar 60 días de vida normal (33.286 operaciones) | 522 s, 64/s | 21,6 s, 1.540/s |
+| Pagos sueltos con todos los eventos | 26/s | 692/s |
+
+De paso, el índice único de IBAN que faltaba cazó un fallo del propio
+generador: dos cuentas con el mismo IBAN.
+
+**Resultado a 3.000 clientes** (200.846 apuntes, 65.278 pagos con tarjeta,
+29.623 transferencias, 148.899 notificaciones), con 100.614 operaciones de vida
+normal a 1.342/s:
+
+| Detector | Tiempo | Plantados encontrados | Falsos positivos |
+|---|---|---|---|
+| Viaje imposible | en línea | 30/30 | 0 |
+| Ráfaga de cargos | en línea | 30/30 | 0 |
+| Anillos de mulas | 1,31 s | 249/249 | 0 |
+| Dispositivo compartido | 0,06 s | 30/30 | 0 |
+| Estructuración | 0,33 s | 30/30 | 0 |
+
+**Cómo leer el 100 %:** el fraude lo planté yo, siguiendo las mismas reglas que
+buscan los detectores. Así que demuestra que **la implementación es correcta y
+escala**, no que detectaría a un blanqueador real, que se adapta. Los falsos
+positivos sí son informativos, porque la vida normal no está hecha para
+esquivarlos. Y el dispositivo compartido descansa en un supuesto declarado: los
+hogares que comparten aparato comparten también una cuenta.
+
 ## Limitaciones que conviene declarar
 
 - **`LIVE SELECT` solo funciona en despliegue de un nodo.** Esto contradice el
@@ -331,6 +384,8 @@ Ninguna de estas aparece leyendo el código; todas salieron corriéndolo.
 | redefinir una tabla para «limpiarla» | `REMOVE FIELD` / `REMOVE TABLE` explícitos | `DEFINE TABLE OVERWRITE` **no borra los campos viejos**: uno obligatorio que ya sobra hace fallar cada inserción. Por eso 06_access lleva `REMOVE TABLE IF EXISTS step_up` |
 | fiarse de que `LIVE SELECT` entrega todo | guardar la notificación y pedir las no leídas | Con dos suscriptores se perdieron entregas sin ningún error (ver «Tarjetas y notificaciones») |
 | rechazar lanzando un error en un evento | rechazar devolviendo un código en un endpoint | El error deshace también lo que se quería guardar, como un contador de fallos |
+| `WHERE campo = $var.campo` | `LET $x = $var.campo; … WHERE campo = $x` | Con el campo de una variable el planificador **no usa el índice** y recorre la tabla: 72 ms frente a 1,2 ms por transferencia |
+| `LET $acc = $acc + 1` dentro de un `FOR` | recursión, o `map`/`filter` | El `LET` del bucle crea otra variable: el acumulador de fuera se queda en su valor inicial, sin error |
 
 Además, dos sutilezas de datos: `math::sum` de un conjunto vacío devuelve el
 entero `0`, no `0dec`, así que las comparaciones usan `!=` (tolerante al tipo) y
@@ -348,8 +403,8 @@ orden.
 
 ## Pendiente
 
-- Generador de volumen (decenas de miles de movimientos) para medir los
-  detectores con datos de verdad y no con cinco cuentas.
+- Generador de volumen: HECHO (ver «Volumen»). Queda medir a más de 3.000
+  clientes y con un servidor en disco, no en memoria.
 - Comparativa medida de la detección de anillos en SurrealQL frente a un CTE
   recursivo equivalente en PostgreSQL, incluyendo los casos donde SurrealDB
   **no** gana.

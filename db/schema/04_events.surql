@@ -20,11 +20,15 @@
 DEFINE EVENT OVERWRITE velocity ON entry
 WHEN $event = "CREATE" AND $after.amount < 0dec
      AND $after.account.kind = 'customer' THEN {
+    -- Variable simple y no `$after.account` dentro del WHERE: comparar con el
+    -- CAMPO de una variable hace que SurrealDB 3.2 ignore el índice y recorra
+    -- la tabla entera (EXPLAIN: TableScan). Ver db/README.md, «Volumen».
+    LET $acc = $after.account;
     LET $n = count(SELECT id FROM entry
-                   WHERE account = $after.account AND amount < 0dec
+                   WHERE account = $acc AND amount < 0dec
                      AND at > time::now() - 5m);
     LET $ya = count(SELECT id FROM fraud_alert
-                    WHERE kind = 'velocity' AND account = $after.account
+                    WHERE kind = 'velocity' AND account = $acc
                       AND at > time::now() - 5m);
     IF $n >= 5 AND $ya = 0 {
         CREATE fraud_alert SET kind = 'velocity', score = 0.6,
@@ -37,8 +41,10 @@ WHEN $event = "CREATE" AND $after.amount < 0dec
 -- un avión comercial.
 DEFINE EVENT OVERWRITE impossible_travel ON card_payment
 WHEN $event = "CREATE" THEN {
+    LET $card = $after.card;
+    LET $at = $after.at;
     LET $prev = (SELECT * FROM card_payment
-                 WHERE card = $after.card AND at < $after.at
+                 WHERE card = $card AND at < $at
                  ORDER BY at DESC LIMIT 1)[0];
     IF $prev != NONE {
         LET $m = geo::distance($prev.loc, $after.loc);

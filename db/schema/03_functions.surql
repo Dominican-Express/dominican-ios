@@ -21,8 +21,11 @@ DEFINE FUNCTION OVERWRITE fn::balance($acc: record<account>) {
 -- de abajo no es decorativo: al escribir el registro de la cuenta, crea el
 -- conflicto write-write que impide el descubierto por carrera.
 -- Medido: 0/30 descubiertos con esta función, 7/30 sin ella. Ver db/README.md.
+-- $at solo lo pasa el generador de volumen (demo/gen_volume.py), para sembrar
+-- 90 días de historia. La API no lo expone: un cliente no fecha sus pagos.
 DEFINE FUNCTION OVERWRITE fn::transfer($from: record<account>, $to: record<account>, $amount: decimal,
-                                       $kind: option<string>, $concept: option<string>) {
+                                       $kind: option<string>, $concept: option<string>,
+                                       $at: option<datetime>) {
     IF $amount <= 0dec { THROW "El importe debe ser positivo" };
     IF $from = $to { THROW "Origen y destino son la misma cuenta" };
     LET $f = (SELECT * FROM ONLY $from);
@@ -31,27 +34,34 @@ DEFINE FUNCTION OVERWRITE fn::transfer($from: record<account>, $to: record<accou
     IF $f.currency != $t.currency { THROW "Divisas distintas" };
     IF fn::balance($from) < $amount { THROW "Saldo insuficiente" };
 
-    LET $tx = (CREATE ONLY txn SET kind = $kind ?? 'transfer', concept = $concept);
-    CREATE entry SET account = $from, txn = $tx.id, amount = -$amount;
-    CREATE entry SET account = $to,   txn = $tx.id, amount =  $amount;
+    LET $when = $at ?? time::now();
+    LET $tx = (CREATE ONLY txn SET kind = $kind ?? 'transfer', concept = $concept, at = $when);
+    CREATE entry SET account = $from, txn = $tx.id, amount = -$amount, at = $when;
+    CREATE entry SET account = $to,   txn = $tx.id, amount =  $amount, at = $when;
 
     -- el asiento debe sumar cero o la transacción entera se deshace
-    LET $sum = math::sum(SELECT VALUE amount FROM entry WHERE txn = $tx.id);
+    -- `$txid` y no `$tx.id`: con el campo de una variable en el WHERE, SurrealDB
+    -- 3.2 no usa el índice entry_by_txn y recorre TODOS los apuntes. Era lo que
+    -- hacía que cada transferencia tardara 72 ms con 66.000 apuntes.
+    LET $txid = $tx.id;
+    LET $sum = math::sum(SELECT VALUE amount FROM entry WHERE txn = $txid);
     IF $sum != 0dec { THROW "Asiento descuadrado" };
 
     UPDATE $from SET balance -= $amount;
     UPDATE $to   SET balance += $amount;
-    RELATE $from->transfer->$to SET amount = $amount, txn = $tx.id;
+    RELATE $from->transfer->$to SET amount = $amount, txn = $tx.id, at = $when;
     RETURN $tx.id;
 } PERMISSIONS NONE;
 
 -- Ingreso desde fuera del banco (nómina, recarga). La contrapartida es
 -- `account:ext`, sin la cual el asiento no podría cuadrar a cero.
-DEFINE FUNCTION OVERWRITE fn::credit($to: record<account>, $amount: decimal, $kind: string) {
+DEFINE FUNCTION OVERWRITE fn::credit($to: record<account>, $amount: decimal, $kind: string,
+                                     $at: option<datetime>) {
     IF $amount <= 0dec { THROW "El importe debe ser positivo" };
-    LET $tx = (CREATE ONLY txn SET kind = $kind);
-    CREATE entry SET account = account:ext, txn = $tx.id, amount = -$amount;
-    CREATE entry SET account = $to,         txn = $tx.id, amount =  $amount;
+    LET $when = $at ?? time::now();
+    LET $tx = (CREATE ONLY txn SET kind = $kind, at = $when);
+    CREATE entry SET account = account:ext, txn = $tx.id, amount = -$amount, at = $when;
+    CREATE entry SET account = $to,         txn = $tx.id, amount =  $amount, at = $when;
     UPDATE account:ext SET balance -= $amount;
     UPDATE $to         SET balance += $amount;
     RETURN $tx.id;

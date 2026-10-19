@@ -173,8 +173,9 @@ DEFINE API OVERWRITE "/transfers" FOR post
             RETURN fn::bad_request('invalid_from')
         };
         LET $from = (SELECT VALUE id FROM ONLY type::record($b.from));
+        LET $iban = $b.to_iban;
         LET $to = (SELECT VALUE id FROM account
-                   WHERE iban = $b.to_iban AND kind = 'customer' LIMIT 1)[0];
+                   WHERE iban = $iban AND kind = 'customer' LIMIT 1)[0];
         RETURN fn::place_order($b.id, 'transfer', $from, $to, $b.to_iban,
                                <decimal>$b.amount, $b.concept);
     };
@@ -194,7 +195,8 @@ DEFINE API OVERWRITE "/bizum" FOR post
         };
         LET $from = $auth.customer.bizum_account;
         IF $from = NONE { RETURN { status: 409, body: { error: 'bizum_not_enabled' } } };
-        LET $to = (SELECT VALUE bizum_account FROM customer WHERE phone = $b.to_phone LIMIT 1)[0];
+        LET $phone = $b.to_phone;
+        LET $to = (SELECT VALUE bizum_account FROM customer WHERE phone = $phone LIMIT 1)[0];
         RETURN fn::place_order($b.id, 'bizum', $from, $to, $b.to_phone,
                                <decimal>$b.amount, $b.concept);
     };
@@ -212,7 +214,8 @@ DEFINE API OVERWRITE "/contacts" FOR post
            OR !string::matches($b.phone, "^[+]34[0-9]{9}$") {
             RETURN fn::bad_request('invalid_phone')
         };
-        LET $c = (SELECT * FROM customer WHERE phone = $b.phone LIMIT 1)[0];
+        LET $phone = $b.phone;
+        LET $c = (SELECT * FROM customer WHERE phone = $phone LIMIT 1)[0];
         IF $c = NONE { RETURN { status: 404, body: { error: 'not_a_customer' } } };
         IF $c.id = $auth.customer { RETURN { status: 422, body: { error: 'cannot_add_yourself' } } };
         LET $already = count(SELECT id FROM favorite WHERE in = $auth.customer AND out = $c.id) > 0;
