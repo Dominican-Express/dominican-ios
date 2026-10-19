@@ -75,7 +75,11 @@ DEFINE TABLE OVERWRITE card SCHEMAFULL TYPE NORMAL
 DEFINE FIELD OVERWRITE account   ON card TYPE record<account>;
 DEFINE FIELD OVERWRITE holder    ON card TYPE record<customer>;
 DEFINE FIELD OVERWRITE pan_last4 ON card TYPE string;
+-- Bloqueo y límite los cambia quien lleva la tarjeta, por /cards/block y
+-- /cards/limit (08_cards); los aplica fn::charge_card en cada pago.
 DEFINE FIELD OVERWRITE blocked   ON card TYPE bool DEFAULT false;
+DEFINE FIELD OVERWRITE monthly_limit ON card TYPE decimal DEFAULT 5000dec
+    ASSERT $value > 0dec;
 DEFINE FIELD OVERWRITE pan ON card TYPE option<string>
     PERMISSIONS FOR select WHERE holder = $auth.customer AND $auth.verified_until > time::now();
 DEFINE FIELD OVERWRITE cvv ON card TYPE option<string>

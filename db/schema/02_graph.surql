@@ -32,9 +32,18 @@ DEFINE TABLE OVERWRITE favorite TYPE RELATION IN customer OUT customer ENFORCED
 DEFINE INDEX OVERWRITE favorite_pair ON favorite FIELDS in, out UNIQUE;
 
 -- Pagos con tarjeta, con geolocalización para el detector de viaje imposible.
-DEFINE TABLE OVERWRITE card_payment SCHEMAFULL TYPE NORMAL;
-DEFINE FIELD OVERWRITE card   ON card_payment TYPE record<card>;
-DEFINE FIELD OVERWRITE amount ON card_payment TYPE decimal;
+-- Los crea SOLO fn::charge_card (08_cards), también los denegados: un intento
+-- con tarjeta bloqueada es información para el fraude. El titular ve los de
+-- las tarjetas de sus cuentas.
+DEFINE TABLE OVERWRITE card_payment SCHEMAFULL TYPE NORMAL
+    PERMISSIONS FOR select WHERE card.account IN $auth.customer->owns->account;
+DEFINE FIELD OVERWRITE card     ON card_payment TYPE record<card>;
+DEFINE FIELD OVERWRITE amount   ON card_payment TYPE decimal;
+DEFINE FIELD OVERWRITE merchant ON card_payment TYPE string DEFAULT 'comercio';
+DEFINE FIELD OVERWRITE status   ON card_payment TYPE string DEFAULT 'approved'
+    ASSERT $value IN ['approved','declined'];
+DEFINE FIELD OVERWRITE reason   ON card_payment TYPE option<string>;
+DEFINE FIELD OVERWRITE txn      ON card_payment TYPE option<record<txn>>;
 DEFINE FIELD OVERWRITE at     ON card_payment TYPE datetime DEFAULT time::now();
 -- punto = (longitud, latitud). En ese orden: es donde todo el mundo se equivoca.
 DEFINE FIELD OVERWRITE loc    ON card_payment TYPE geometry<point>;

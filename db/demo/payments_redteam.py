@@ -1,24 +1,10 @@
 #!/usr/bin/env python3
-"""Prueba en rojo de payments_test.py.
-
-Para cada protección de la API de pagos, aplica el esquema REAL con esa línea
-cambiada (texto exacto sobre el fichero, no una copia reescrita a mano) sobre
-una base limpia, y exige que la comprobación que la vigila caiga. Si la
-sustitución no encuentra el texto, el caso falla: así no puede quedar un caso
-que no rompe nada porque el fichero cambió.
+"""Prueba en rojo de payments_test.py: rompe cada protección de la API de pagos.
 
     python3 db/demo/payments_redteam.py
 """
-import os
-import subprocess
-import sys
-import uuid
-from pathlib import Path
+from redteam import run_cases
 
-HERE = Path(__file__).resolve().parent
-SCHEMA = HERE.parent / "schema"
-
-# (protección, fichero, texto original, texto roto, comprobación que DEBE caer)
 CASES = [
     ("comprobar que la cuenta de origen es tuya",
      "07_api.surql",
@@ -88,35 +74,5 @@ CASES = [
 ]
 
 
-def run(cmd, env):
-    return subprocess.run(cmd, cwd=HERE, env=env, capture_output=True, text=True)
-
-
-def main():
-    caught = 0
-    for name, fname, old, new, must_fail in CASES:
-        src = (SCHEMA / fname).read_text()
-        if old not in src:
-            print(f"  [ROTO ] {name}\n          el texto a romper ya no está en {fname}: actualiza el caso")
-            continue
-        db = "rt_" + uuid.uuid4().hex[:8]
-        env = {**os.environ, "SURREAL_DB": db}
-        run(["./apply.sh"], env)
-        broken = HERE / f".rt_{db}.surql"
-        broken.write_text(src.replace(old, new, 1))
-        run(["./surql.sh", str(broken)], env)
-        broken.unlink()
-        run(["./surql.sh", "01_seed.surql"], env)
-        out = run([sys.executable, "payments_test.py"], env).stdout
-        line = next((l for l in out.splitlines() if must_fail in l), "")
-        ok = "FALLA" in line
-        caught += ok
-        print(f"  [{'cae  ' if ok else 'NO CAE'}] {name}")
-        if not ok:
-            print(f"          «{must_fail}» siguió pasando (o no se ejecutó): no vigila esta rotura")
-    print(f"\n{caught}/{len(CASES)} roturas detectadas por su prueba")
-    sys.exit(0 if caught == len(CASES) else 1)
-
-
 if __name__ == "__main__":
-    main()
+    run_cases(CASES, "payments_test.py")
