@@ -27,7 +27,7 @@ DEFINE FUNCTION OVERWRITE fn::detect_rings($max_hops: int) {
             account = $r.id, detail = { paths: $r.anillos };
     };
     RETURN count($found);
-};
+} PERMISSIONS NONE;
 
 -- ---------------------------------------------------------------------------
 -- 2. DISPOSITIVO COMPARTIDO: varias identidades desde el mismo aparato.
@@ -40,7 +40,7 @@ DEFINE FUNCTION OVERWRITE fn::detect_shared_devices($min: int) {
             detail = { fingerprint: $d.fingerprint, holders: $d.holders };
     };
     RETURN count($found);
-};
+} PERMISSIONS NONE;
 
 -- ---------------------------------------------------------------------------
 -- 3. ESTRUCTURACIÓN (smurfing): muchos envíos justo por debajo del umbral
@@ -63,7 +63,7 @@ DEFINE FUNCTION OVERWRITE fn::detect_structuring($floor: decimal, $ceil: decimal
         };
     };
     RETURN count($found);
-};
+} PERMISSIONS NONE;
 
 -- ---------------------------------------------------------------------------
 -- 4. RECONCILIACIÓN: el saldo materializado contra el libro de apuntes.
@@ -81,4 +81,4 @@ DEFINE FUNCTION OVERWRITE fn::reconcile() {
     RETURN SELECT id, balance, fn::balance(id) AS ledger
            FROM account
            WHERE balance != fn::balance(id);
-};
+} PERMISSIONS NONE;

@@ -23,4 +23,4 @@
 - Confirmar alcance final de funciones adicionales con el grupo, según el documento original.
 
 ## Fuera de esta fase
-Backend Java/SurrealDB, autenticación, APIs, persistencia, sincronización, APNs, biometría real y operaciones monetarias. Ahorro, divisas, crédito y análisis de fraude pendientes de decisión de producto.
+Conexión con SurrealDB (sin backend intermedio, ver `backend_integration_notes.md`), autenticación, APIs, persistencia, sincronización, APNs, biometría real y operaciones monetarias. Ahorro, divisas, crédito y análisis de fraude pendientes de decisión de producto.

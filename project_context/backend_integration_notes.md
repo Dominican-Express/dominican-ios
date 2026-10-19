@@ -8,10 +8,18 @@ Separar repositorios de cuentas, tarjetas, movimientos y contactos cuando exista
 
 La simulación de pagos no debe convertirse silenciosamente en un envío real. Diseñar un servicio transaccional distinto con confirmación autenticada, idempotencia, comprobación de titularidad/límites y recibo autoritativo. Hoy los saldos permanecen intactos.
 
-## Arquitectura propuesta por el documento
-Backend Java delante de SurrealDB. Cuentas/tarjetas/transacciones como documentos con esquema; usuario–cuenta y usuario–contacto como relaciones con permisos. Cotitularidad y transferencias deben verificarse del lado servidor. Transacciones ACID para cambios de saldo, según la propuesta del documento. Validar capacidades concretas contra la versión elegida al implementar; no se han instalado ni verificado SurrealDB o drivers.
+## Arquitectura decidida (2026-10-19): sin backend intermedio
+El documento original proponía un backend Java delante de SurrealDB. **Se descarta**: la app habla directamente con SurrealDB 3.2, que está pensada para ello. El detalle está en `db/README.md` («La API, dentro de la base de datos») y el código en `db/schema/07_api.surql`.
 
-REST o GraphQL detrás del protocolo; jamás credenciales de base de datos en iOS. La selección definitiva de transporte sigue abierta. Live Queries pueden alimentar eventos del backend y APNs; la app no se conecta directamente a la base.
+- **Sesión:** `POST /signin` con `{ns, db, ac: "banca", email, pass}`. Devuelve un token de usuario de la app, que se guarda en Keychain. iOS nunca lleva credenciales de la base: el token solo da los permisos de ese cliente.
+- **Lecturas:** consultas SurrealQL por `POST /sql` con el token. Los permisos de la base ya filtran a lo suyo: sus cuentas, sus movimientos, sus tarjetas (el PAN y el CVV solo tras verificar el PIN), sus contactos y los cotitulares.
+- **Escrituras:** endpoints HTTP JSON definidos dentro de la base, en `POST /api/<ns>/<db>/<ruta>`: `/transfers`, `/bizum` y `/contacts`. Comprueban la titularidad y devuelven códigos HTTP de verdad (201, 403, 404, 409, 422).
+- **Importes:** siempre como texto (`"12.50"`), nunca como número JSON; el endpoint rechaza un número con 400.
+- **Idempotencia:** cada orden lleva un `id` que genera la app (un UUID por intento de pago). Repetir con el mismo id devuelve la respuesta original sin pagar dos veces.
+- **Reintento obligatorio** ante «Transaction conflict … can be retried», que SurrealDB devuelve como **HTTP 400**: se reintenta con el MISMO id. Es seguro por la idempotencia. Referencia: `api()` en `db/demo/session.py`.
+- **Alertas:** `LIVE SELECT` sobre `fraud_alert` por WebSocket (`/rpc`), ya filtrado por los permisos.
+
+En `BankRepository` esto supone una implementación `SurrealBankRepository` con URLSession; las vistas y los view models no cambian.
 
 ## Seguridad y persistencia futuras
 Sesión segura y tokens en Keychain; autenticación real antes de mostrar PAN/CVV. No almacenar/loguear CVV; evitar capturas sensibles y borrar datos al caducar la sesión. Diseño exacto sujeto a contrato y revisión de seguridad. La confirmación actual no equivale a biometría ni autorización.

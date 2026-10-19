@@ -13,10 +13,24 @@
 -- Sin cláusula, el valor por defecto de una tabla es PERMISSIONS NONE y un
 -- usuario de registro no ve absolutamente nada. `root` se las salta todas.
 
+-- Un cliente se ve a sí mismo, a sus contactos (aristas `favorite`, que crea
+-- él mismo por el endpoint /contacts) y a los cotitulares de sus cuentas. De
+-- los demás solo ve nombre y teléfono: el NIF y la cuenta de Bizum son solo
+-- del propio titular.
 DEFINE TABLE OVERWRITE customer SCHEMAFULL TYPE NORMAL
+    PERMISSIONS FOR select WHERE id = $auth.customer
+                              OR id IN $auth.customer->favorite->customer
+                              OR id IN $auth.customer->owns->account<-owns<-customer;
+DEFINE FIELD OVERWRITE name  ON customer TYPE string;
+DEFINE FIELD OVERWRITE nif   ON customer TYPE string
     PERMISSIONS FOR select WHERE id = $auth.customer;
-DEFINE FIELD OVERWRITE name ON customer TYPE string;
-DEFINE FIELD OVERWRITE nif  ON customer TYPE string;
+-- Teléfono en formato E.164 español. Único: es la clave de Bizum.
+DEFINE FIELD OVERWRITE phone ON customer TYPE option<string>
+    ASSERT $value = NONE OR string::matches($value, "^[+]34[0-9]{9}$");
+DEFINE INDEX OVERWRITE customer_phone ON customer FIELDS phone UNIQUE;
+-- La cuenta asociada a Bizum: de ahí sale y ahí llega todo Bizum del cliente.
+DEFINE FIELD OVERWRITE bizum_account ON customer TYPE option<record<account>>
+    PERMISSIONS FOR select WHERE id = $auth.customer;
 
 DEFINE TABLE OVERWRITE account SCHEMAFULL TYPE NORMAL
     PERMISSIONS FOR select WHERE id IN $auth.customer->owns->account;
@@ -27,9 +41,16 @@ DEFINE FIELD OVERWRITE kind     ON account TYPE string DEFAULT 'customer' ASSERT
 DEFINE FIELD OVERWRITE opened   ON account TYPE datetime VALUE time::now() READONLY;
 DEFINE FIELD OVERWRITE balance  ON account TYPE decimal DEFAULT 0dec;
 
-DEFINE TABLE OVERWRITE txn SCHEMAFULL TYPE NORMAL;
+-- El asiento (tipo y concepto de un movimiento) se ve si alguno de sus
+-- apuntes es de una cuenta tuya: así la lista de movimientos muestra el
+-- concepto. Va por el índice entry_by_txn.
+DEFINE TABLE OVERWRITE txn SCHEMAFULL TYPE NORMAL
+    PERMISSIONS FOR select WHERE count(SELECT id FROM entry WHERE txn = $parent.id
+                                       AND account IN $auth.customer->owns->account) > 0;
 DEFINE FIELD OVERWRITE kind ON txn TYPE string ASSERT $value IN ['transfer','bizum','payroll','card','fee'];
 DEFINE FIELD OVERWRITE at   ON txn TYPE datetime VALUE time::now() READONLY;
+DEFINE FIELD OVERWRITE concept ON txn TYPE option<string>
+    ASSERT $value = NONE OR string::len($value) <= 140;
 
 -- El apunte es inmutable: no se corrige, se compensa con otro apunte.
 DEFINE TABLE OVERWRITE entry SCHEMAFULL TYPE NORMAL
