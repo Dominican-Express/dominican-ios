@@ -36,6 +36,9 @@ DEFINE TABLE OVERWRITE account SCHEMAFULL TYPE NORMAL
     PERMISSIONS FOR select WHERE id IN $auth.customer->owns->account;
 -- string::matches: los operadores de coincidencia difusa (~) se eliminaron en 3.0
 DEFINE FIELD OVERWRITE iban     ON account TYPE string ASSERT string::matches($value, "^ES[0-9]{22}$");
+-- Único: dos cuentas con el mismo IBAN harían ambigua una transferencia. Y es
+-- el índice por el que /transfers busca el destino.
+DEFINE INDEX OVERWRITE account_iban ON account FIELDS iban UNIQUE;
 DEFINE FIELD OVERWRITE currency ON account TYPE string DEFAULT 'EUR';
 DEFINE FIELD OVERWRITE kind     ON account TYPE string DEFAULT 'customer' ASSERT $value IN ['customer','external'];
 DEFINE FIELD OVERWRITE opened   ON account TYPE datetime VALUE time::now() READONLY;
@@ -48,7 +51,7 @@ DEFINE TABLE OVERWRITE txn SCHEMAFULL TYPE NORMAL
     PERMISSIONS FOR select WHERE count(SELECT id FROM entry WHERE txn = $parent.id
                                        AND account IN $auth.customer->owns->account) > 0;
 DEFINE FIELD OVERWRITE kind ON txn TYPE string ASSERT $value IN ['transfer','bizum','payroll','card','fee'];
-DEFINE FIELD OVERWRITE at   ON txn TYPE datetime VALUE time::now() READONLY;
+DEFINE FIELD OVERWRITE at   ON txn TYPE datetime DEFAULT time::now() READONLY;
 DEFINE FIELD OVERWRITE concept ON txn TYPE option<string>
     ASSERT $value = NONE OR string::len($value) <= 140;
 
