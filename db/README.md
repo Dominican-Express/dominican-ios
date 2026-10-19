@@ -26,6 +26,8 @@ python3 db/demo/access_test.py       # 18 comprobaciones; --expiry espera la cad
 python3 db/demo/access_redteam.py    # rompe cada protección y exige que su test caiga
 python3 db/demo/payments_test.py     # API de pagos; --race añade la concurrencia
 python3 db/demo/payments_redteam.py  # rompe cada protección de la API, sobre el fichero real
+python3 db/demo/cards_test.py        # PIN con límite de intentos, tarjetas, notificaciones
+python3 db/demo/cards_redteam.py
 ```
 
 Usuarios de demo: `ana@dominican.test` / `demo-ana` (PIN 1234),
@@ -143,22 +145,26 @@ Sin la condición 2, un cotitular verificado vería el PAN de la tarjeta del otr
 Ese fallo estaba en la primera versión y lo destapó pensar en la cotitularidad
 antes de escribir la demo.
 
-### La verificación por PIN, y por qué no es una función
+### La verificación por PIN: tres intentos de diseño
 
 Abrir la ventana exige escribir `app_user.verified_until`, y el usuario no tiene
 permiso de escritura sobre su propia ficha (a propósito: si lo tuviera, se
-pondría `verified_until` en el año 3000 él solo).
+pondría `verified_until` en el año 3000 él solo). Hizo falta probar tres piezas
+hasta dar con la buena, y cada fallo enseña algo de SurrealDB:
 
-La primera versión usaba una `DEFINE FUNCTION`. **No funciona**: una función se
-ejecuta con los permisos de quien la llama, así que su `UPDATE` no hacía nada.
-Y lo peor es que la función **devolvía `true` igualmente**. Un fallo silencioso
-que diría «verificado» sin haber verificado.
-
-La solución idiomática es un `EVENT`, que se ejecuta sin comprobar permisos. El
-usuario solo puede *crear* una petición; el evento compara el PIN con el hash y
-únicamente entonces abre la ventana. La petición se borra siempre, para que el
-PIN en claro no se quede en la base. El usuario puede **provocar** la escritura
-privilegiada, pero no **falsificarla**.
+1. **`DEFINE FUNCTION`: no funciona.** Una función se ejecuta con los permisos de
+   quien la llama, así que su `UPDATE` no hacía nada. Y lo peor es que la
+   función **devolvía `true` igualmente**: decía «verificado» sin haber
+   verificado.
+2. **`DEFINE EVENT`: funciona, pero no puede contar intentos.** El evento se
+   ejecuta sin comprobar permisos y escribe con privilegio. Pero para rechazar
+   un PIN tiene que lanzar un error, y el error deshace la transacción entera,
+   **contador de fallos incluido**. Con ese diseño, un PIN de 4 cifras admitía
+   los 10.000 intentos.
+3. **`DEFINE API`: la buena.** `POST /verify-pin` rechaza **devolviendo** un 401,
+   sin lanzar nada, así que el fallo queda guardado. Tras 3 fallos seguidos
+   bloquea la verificación 15 minutos, y el bloqueo rechaza incluso el PIN
+   correcto. El PIN viaja en la petición y no se escribe en ninguna tabla.
 
 ### Cómo se ha probado
 
@@ -171,11 +177,17 @@ Pero un test que no has visto fallar no vigila nada. `db/demo/access_redteam.py`
 **rompe a propósito** cada protección sobre una base limpia y comprueba que el
 test que la vigila cae: **9/9 roturas detectadas**.
 
-Hacerlo destapó dos tests que habrían pasado con el fallo puesto. El usuario no
-tiene permiso de lectura sobre `step_up`, así que tanto «el PIN no queda
-guardado» como «no puedes pedir la verificación de otro» devolvían vacío pasara
-lo que pasara. Ahora se comprueba el **efecto real**, mirando como root: lo que
-un usuario no puede leer no demuestra que no exista.
+Hacerlo destapó dos tests que habrían pasado con el fallo puesto: el usuario no
+tenía permiso de lectura sobre la tabla de peticiones de PIN de la versión con
+evento, así que veía vacío pasara lo que pasara. Desde entonces se comprueba el
+**efecto real**, mirando como root: lo que un usuario no puede leer no demuestra
+que no exista.
+
+Las tres pruebas en rojo (`access_`, `payments_` y `cards_redteam.py`) usan el
+mismo motor, `demo/redteam.py`: aplican el esquema REAL con un texto exacto
+sustituido, en vez de redefiniciones escritas a mano. Las escritas a mano se
+quedaban viejas: la del viaje imposible reescribía un evento que ya había
+cambiado. Si el texto a romper desaparece del fichero, el caso cuenta como roto.
 
 ## La API, dentro de la base de datos
 
@@ -237,6 +249,42 @@ de saldo quitada, el endpoint respondía con un error en texto en vez de un
 objeto, y la prueba se caía a medias sin decir qué había fallado. Un test que
 se rompe no es un test que falla.
 
+## Tarjetas y notificaciones
+
+`schema/08_cards.surql`. Hasta este bloque, un pago con tarjeta creaba su
+registro pero **no movía dinero**, y el campo `blocked` existía sin que nada lo
+mirara. Ahora todo pago pasa por `fn::charge_card`, que deniega por tarjeta
+bloqueada, por límite mensual o por falta de saldo. **El pago denegado también
+se guarda con su motivo**, porque un intento con una tarjeta bloqueada es
+justo lo que interesa al análisis de fraude.
+
+- **Quien lleva la tarjeta** la bloquea (`/cards/block`) y cambia su límite
+  (`/cards/limit`, hasta el tope del banco). Ser cotitular de la cuenta no basta.
+  A una tarjeta ajena se responde lo mismo que a una inexistente (404), para no
+  revelar cuál de las dos es.
+- **Un cobro escribe también la tarjeta** (`last_used_at`). Así, un cobro y un
+  bloqueo simultáneos chocan y se serializan: es el mismo mecanismo que evita
+  los descubiertos, aplicado a la tarjeta. Esto es por diseño y no tiene prueba
+  propia: los dos órdenes posibles (cobrar y luego bloquear, o al revés) son
+  válidos, así que no hay un estado final que distinga el fallo.
+
+**Las notificaciones son filas, no mensajes.** Cada apunte avisa a todos los
+titulares de su cuenta: ingreso, nómina o gasto, más el aviso de pago
+denegado. El cliente solo puede marcarlas como leídas: con permiso de escritura
+sobre la fila, cada uno de los demás campos lo prohíbe por separado.
+
+`LIVE SELECT` solo sirve para que lleguen al instante, y no es la fuente de
+verdad. **Medido en la 3.2.4** (`demo/live_delivery_check.py`): con un único
+suscriptor llegaron 30 de 30, pero con dos suscriptores a la vez se perdieron
+entregas (23/30 y 24/30 como clientes, en dos mediciones; 28/30 como root), sin
+ningún error y con la fila guardada. SurrealDB tiene fallos conocidos de este
+tipo ([corregido uno en la 3.1](https://surrealdb.com/releases/3.1),
+[otro relacionado](https://github.com/surrealdb/surrealdb/issues/7570)). Por eso la
+app pide las no leídas al abrir y al reconectar: un aviso perdido por el camino
+llega tarde, pero no se pierde.
+
+`demo/cards_test.py`: **41 comprobaciones**. `demo/cards_redteam.py`: **12/12**.
+
 ## Limitaciones que conviene declarar
 
 - **`LIVE SELECT` solo funciona en despliegue de un nodo.** Esto contradice el
@@ -280,6 +328,9 @@ Ninguna de estas aparece leyendo el código; todas salieron corriéndolo.
 | devolver un objeto como `body` | `MIDDLEWARE api::res::body("json")` | Sin él: «HTTP API response body must be None, bytes, or string» |
 | reintentar solo los 5xx | reconocer el conflicto por su texto | El conflicto de escritura llega como **400** |
 | `type::is::string(…)` | `type::is_string(…)` | Otro anidamiento `::` aplanado en 3.x |
+| redefinir una tabla para «limpiarla» | `REMOVE FIELD` / `REMOVE TABLE` explícitos | `DEFINE TABLE OVERWRITE` **no borra los campos viejos**: uno obligatorio que ya sobra hace fallar cada inserción. Por eso 06_access lleva `REMOVE TABLE IF EXISTS step_up` |
+| fiarse de que `LIVE SELECT` entrega todo | guardar la notificación y pedir las no leídas | Con dos suscriptores se perdieron entregas sin ningún error (ver «Tarjetas y notificaciones») |
+| rechazar lanzando un error en un evento | rechazar devolviendo un código en un endpoint | El error deshace también lo que se quería guardar, como un contador de fallos |
 
 Además, dos sutilezas de datos: `math::sum` de un conjunto vacío devuelve el
 entero `0`, no `0dec`, así que las comparaciones usan `!=` (tolerante al tipo) y
@@ -302,6 +353,5 @@ orden.
 - Comparativa medida de la detección de anillos en SurrealQL frente a un CTE
   recursivo equivalente en PostgreSQL, incluyendo los casos donde SurrealDB
   **no** gana.
-- Bloqueo de tarjeta que se aplique (hoy el campo `blocked` existe y nada lo
-  comprueba), límites de gasto configurables, límite de intentos del PIN y
-  notificaciones.
+- Límite de intentos también en el inicio de sesión: hoy la contraseña no lo
+  tiene, solo el PIN.

@@ -12,7 +12,7 @@ Requiere haber cargado 01_seed.surql. No modifica datos de negocio.
 import sys
 import time
 
-from session import last, root_last, signin
+from session import api, last, root_last, signin
 
 FAILS = []
 
@@ -36,19 +36,19 @@ ana = signin("ana@dominican.test", "demo-ana")
 c = card(ana, "card:ana")
 check("ve su tarjeta, pero sin PAN ni CVV", c.get("pan_last4") == "4242" and c.get("pan") is None, c)
 
-r = last(ana, "RETURN fn::verify_step_up('0000');")
-check("PIN incorrecto: la verificación se rechaza", str(r).startswith("ERROR") and "PIN" in str(r), r)
+st, r = api(ana, "/verify-pin", {"pin": "0000"})
+check("PIN incorrecto: la verificación se rechaza", st == 401, (st, r))
 check("…y el PAN sigue oculto", card(ana, "card:ana").get("pan") is None, card(ana, "card:ana"))
 
-r = last(ana, "RETURN fn::verify_step_up('1234');")
-check("PIN correcto: la verificación se acepta", r is True, r)
+st, r = api(ana, "/verify-pin", {"pin": "1234"})
+check("PIN correcto: la verificación se acepta", st == 200, (st, r))
 c = card(ana, "card:ana")
 check("ahora ve PAN y CVV", c.get("pan") == "4111111111114242" and c.get("cvv") == "123", c)
 
-# Como root: ana no tiene permiso de lectura sobre step_up, así que vería []
-# aunque la fila existiera. Ese test pasaría con el fallo puesto.
-r = root_last("SELECT * FROM step_up;")
-check("la petición con el PIN en claro no queda guardada", r == [], r)
+# El PIN viaja en el cuerpo de la petición y no se escribe en ninguna tabla.
+# Lo único guardado es su hash, y se comprueba como root.
+r = root_last("SELECT VALUE [string::starts_with(pin, '$argon2'), pin = '1234'] FROM app_user:ana;")
+check("el PIN se guarda solo como hash argon2, nunca en claro", r == [[True, False]], r)
 
 u = last(ana, "SELECT * FROM app_user:ana;")[0]
 check("no puede leer su propio hash de contraseña", "pass" not in u, u)
@@ -67,9 +67,9 @@ r = last(ana, "SELECT id FROM account WHERE id = account:marta OR id = account:j
 check("no ve cuentas ajenas", r == [], r)
 
 # ana conoce el PIN de luis e intenta abrirle la ventana a él. Lo que importa
-# es el EFECTO, que se mira como root: si `user` fuera falsificable, el evento
-# compararía el PIN de luis, acertaría y le abriría la ventana.
-last(ana, "CREATE step_up SET user = app_user:luis, pin = '5678';")
+# es el EFECTO, que se mira como root: si el endpoint hiciera caso a un `user`
+# del cuerpo, compararía el PIN de luis, acertaría y le abriría la ventana.
+api(ana, "/verify-pin", {"pin": "5678", "user": "app_user:luis"})
 r = root_last("SELECT VALUE verified_until FROM app_user:luis;")
 check("no puede pedir la verificación de otro usuario", r == [None], r)
 
@@ -83,7 +83,7 @@ check("ve la cuenta conjunta y la suya, nada más",
 c = card(luis, "card:ana")
 check("ve que existe la tarjeta de la cuenta conjunta", c.get("pan_last4") == "4242", c)
 
-last(luis, "RETURN fn::verify_step_up('5678');")
+api(luis, "/verify-pin", {"pin": "5678"})
 c = card(luis, "card:ana")
 check("verificado, sigue SIN ver el PAN de la tarjeta de ana", c.get("pan") is None, c)
 c = card(luis, "card:luis")

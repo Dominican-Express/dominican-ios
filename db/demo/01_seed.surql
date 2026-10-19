@@ -2,7 +2,7 @@
 -- IBAN no válidos a propósito. Ningún dato real.
 
 DELETE fraud_alert; DELETE card_payment; DELETE transfer; DELETE uses;
-DELETE owns; DELETE favorite; DELETE entry; DELETE txn; DELETE app_user; DELETE payment_order;
+DELETE owns; DELETE favorite; DELETE entry; DELETE txn; DELETE app_user; DELETE payment_order; DELETE notification;
 DELETE card; DELETE device; DELETE account; DELETE customer;
 
 -- Contrapartida externa: sin ella, una nómina no podría cuadrar a cero.

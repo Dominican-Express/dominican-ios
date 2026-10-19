@@ -41,14 +41,15 @@ RETURN fn::debit_at(account:marta, 2800dec, time::now() - duration::from_hours(4
 
 -- ---------------------------------------------------------------------------
 -- 4. VIAJE IMPOSIBLE: Madrid -> Nueva York en 10 minutos
--- El punto se escribe (longitud, latitud). En ese orden.
-CREATE card_payment SET card = card:ana, amount = 30dec,
-    loc = (-3.7038, 40.4168),  at = time::now() - 20m;
-CREATE card_payment SET card = card:ana, amount = 1850dec,
-    loc = (-74.0060, 40.7128), at = time::now() - 10m;
+-- El punto se escribe (longitud, latitud). En ese orden. Los pagos pasan por
+-- fn::charge_card: mueven dinero de verdad y respetan bloqueo, límite y saldo.
+RETURN fn::charge_card(card:ana, 30dec, 'Café Madrid',
+    (-3.7038, 40.4168),  time::now() - 20m);
+RETURN fn::charge_card(card:ana, 1850dec, 'Electronics NYC',
+    (-74.0060, 40.7128), time::now() - 10m);
 
 -- CONTROL: Madrid -> Barcelona en 4 horas. Plausible en AVE, no debe avisar.
-CREATE card_payment SET card = card:luis, amount = 20dec,
-    loc = (-3.7038, 40.4168), at = time::now() - duration::from_hours(5);
-CREATE card_payment SET card = card:luis, amount = 45dec,
-    loc = (2.1734, 41.3851),  at = time::now() - duration::from_hours(1);
+RETURN fn::charge_card(card:luis, 20dec, 'Kiosko Atocha',
+    (-3.7038, 40.4168), time::now() - duration::from_hours(5));
+RETURN fn::charge_card(card:luis, 45dec, 'Restaurante Barcelona',
+    (2.1734, 41.3851),  time::now() - duration::from_hours(1));
