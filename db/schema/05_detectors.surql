@@ -54,10 +54,17 @@ DEFINE FUNCTION OVERWRITE fn::detect_rings($max_hops: int) {
     LET $rings = array::flatten($starts.map(|$e| fn::ring_from([$e], $max_hops - 1)));
     -- cada anillo aparece una vez por cada cuenta desde la que se empieza
     LET $accounts = array::distinct(array::flatten($rings.map(|$r| $r.map(|$e| $e.in))));
+    -- El id dice QUÉ se ha visto (cuenta + miembros de sus anillos) e INSERT
+    -- IGNORE no repite lo ya avisado: repetir el barrido no duplica alertas.
+    -- Antes era CREATE y cada pasada añadía otras tantas (medido: 22 → 44 → 66).
     FOR $a IN $accounts {
-        CREATE fraud_alert SET kind = 'mule_ring', score = 0.85, account = $a,
-            detail = { rings: $rings.filter(|$r| $a INSIDE $r.map(|$e| $e.in))
-                                    .map(|$r| $r.map(|$e| <string>$e.in)) };
+        LET $mine = $rings.filter(|$r| $a INSIDE $r.map(|$e| $e.in));
+        LET $members = array::sort(array::distinct(array::flatten($mine.map(|$r| $r.map(|$e| $e.in)))));
+        INSERT IGNORE INTO fraud_alert {
+            id: ['mule_ring', $a, $members],
+            kind: 'mule_ring', score: 0.85, account: $a,
+            detail: { rings: $mine.map(|$r| $r.map(|$e| <string>$e.in)) }
+        };
     };
     RETURN count($accounts);
 } PERMISSIONS NONE;
@@ -105,9 +112,12 @@ DEFINE FUNCTION OVERWRITE fn::detect_shared_devices($min: int) {
             array::min(array::intersect($c->owns->account<-owns<-customer, $d.holders)
                        .map(|$x| <string>$x))))) >= $min);
     FOR $d IN $found {
-        CREATE fraud_alert SET kind = 'shared_device', score = 0.75,
-            device = $d.id,
-            detail = { fingerprint: $d.fingerprint, holders: $d.holders };
+        -- Mismo aparato y mismos titulares = la misma alerta (ver detect_rings).
+        INSERT IGNORE INTO fraud_alert {
+            id: ['shared_device', $d.id, array::sort($d.holders)],
+            kind: 'shared_device', score: 0.75, device: $d.id,
+            detail: { fingerprint: $d.fingerprint, holders: $d.holders }
+        };
     };
     RETURN count($found);
 } PERMISSIONS NONE;
@@ -127,9 +137,13 @@ DEFINE FUNCTION OVERWRITE fn::detect_structuring($floor: decimal, $ceil: decimal
                   GROUP BY account);
     FOR $s IN $found {
         IF $s.n >= $min_ops {
-            CREATE fraud_alert SET kind = 'structuring', score = 0.7,
-                account = $s.account,
-                detail = { ops: $s.n, total: $s.total, window: '24h' };
+            -- Una alerta por cuenta y día (ver detect_rings). Supuesto declarado:
+            -- una ráfaga que cruza la medianoche puede avisar dos días seguidos.
+            INSERT IGNORE INTO fraud_alert {
+                id: ['structuring', $s.account, time::floor(time::now(), 1d)],
+                kind: 'structuring', score: 0.7, account: $s.account,
+                detail: { ops: $s.n, total: $s.total, window: '24h' }
+            };
         };
     };
     RETURN count($found);

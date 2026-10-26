@@ -7,6 +7,8 @@
 #   ./db/demo/demo.sh attack   # terminal 3: lanza el ataque y el barrido
 #   ./db/demo/demo.sh race     # concurrencia: versión buena frente a insegura
 #   ./db/demo/demo.sh access   # permisos, actuando como clientes
+#   ./db/demo/demo.sh studio       # SurrealDB EN DISCO, para abrirlo con Surrealist
+#   ./db/demo/demo.sh studio-load  # carga las bases `bank` (historia) y `volume` (300 clientes)
 #
 # SURREAL_BIN apunta al binario si `surreal` no está en el PATH.
 set -e
@@ -16,6 +18,8 @@ cd "$DIR"
 # 20 rondas y no 10: con 10, la versión insegura puede salir limpia por azar
 # (~0,7 % medido) y la demo no demostraría nada. Con 20, ~0,005 %; tarda ~5 s.
 : ${ROUNDS:=20}
+# Fuera del repo: un worktree borrado no se lleva los datos de la presentación.
+: ${STUDIO_DATA:=$HOME/.local/share/dominican-express/surrealkv}
 
 case "$1" in
   server)
@@ -48,8 +52,28 @@ case "$1" in
     ./surql.sh 01_seed.surql > /dev/null
     python3 access_test.py
     ;;
+  studio)
+    mkdir -p "${STUDIO_DATA:h}"
+    exec "$SURREAL_BIN" start --username root --password root \
+         --bind 127.0.0.1:8099 --no-banner "surrealkv://$STUDIO_DATA"
+    ;;
+  studio-load)
+    # `bank`: los 5 clientes de la semilla con el ataque y el barrido ya hechos,
+    # pequeña para que el grafo se lea en pantalla.
+    SURREAL_DB=bank ./apply.sh > /dev/null
+    SURREAL_DB=bank ./surql.sh 01_seed.surql > /dev/null
+    SURREAL_DB=bank ./surql.sh 02_attack.surql > /dev/null
+    SURREAL_DB=bank ./surql.sh 03_detect.surql > /dev/null
+    echo "bank:   5 customers, attack + sweep done"
+    # `volume`: banco generado con vida normal y fraude plantado.
+    SURREAL_DB=volume ./apply.sh > /dev/null
+    SURREAL_DB=volume python3 gen_volume.py --customers 300 --days 60 \
+        --truth "${STUDIO_DATA:h}/volume_truth.json" > /dev/null
+    SURREAL_DB=volume ./surql.sh 03_detect.surql > /dev/null
+    echo "volume: 300 customers, 60 days, planted fraud, sweep done"
+    ;;
   *)
-    sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
     exit 1
     ;;
 esac
