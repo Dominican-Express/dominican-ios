@@ -30,6 +30,8 @@ python3 db/demo/cards_test.py        # PIN con límite de intentos, tarjetas, no
 python3 db/demo/cards_redteam.py
 python3 db/demo/detect_test.py       # repetir el barrido no duplica alertas
 python3 db/demo/detect_redteam.py
+python3 db/demo/time_travel_test.py      # máquina del tiempo; servidor CON versionado
+python3 db/demo/time_travel_redteam.py
 ```
 
 Usuarios de demo: `ana@dominican.test` / `demo-ana` (PIN 1234),
@@ -360,6 +362,68 @@ positivos sí son informativos, porque la vida normal no está hecha para
 esquivarlos. Y el dispositivo compartido descansa en un supuesto declarado: los
 hogares que comparten aparato comparten también una cuenta.
 
+## La máquina del tiempo: investigar una alerta como estaba
+
+Cuando salta una alerta, el investigador necesita ver el banco **como estaba
+en ese momento**: para entonces las mulas pueden haber vaciado las cuentas,
+dado de baja el móvil o quitado un cotitular. `db/schema/09_time_travel.surql`
+lo resuelve con **dos relojes**, elegidos a propósito:
+
+- **Tiempo del banco** (`at` del libro de apuntes). El libro es inmutable y no
+  caduca: `fn::balance_at(cuenta, fecha)` da el saldo de cualquier fecha sin
+  depender de nada más. Es la historia larga, la que pide un regulador.
+- **Tiempo del sistema** (versionado del motor, SurrealKV). Guarda cada estado
+  anterior de cada registro durante la retención (30 días) y deja consultar con
+  `SELECT ... VERSION d'...'`. Es para lo que sí se puede cambiar o borrar.
+  `fn::investigate(alerta)` reconstruye cuentas, titulares, saldos y aparatos en
+  el instante de la alerta, los pone al lado de cómo están ahora y lista lo que
+  ha cambiado (`device_deleted`, `owner_removed`, `balance_drop`…).
+
+Demo: `demo.sh stage`, `demo.sh attack` (las alertas saltan en directo),
+`demo.sh coverup` (las mulas borran el rastro) y `fn::investigate` sobre una
+alerta: el móvil borrado reaparece con sus cuatro usuarios, Luis vuelve a ser
+cotitular de Ana y la cuenta vaciada de Marta tenía 3.220 €.
+`fn::balance_at(account:marta, <hora de la alerta>)` da lo mismo: **los dos
+relojes coinciden**, y el test lo comprueba cuenta por cuenta.
+
+**Por qué esto pesa en la elección de SurrealDB.** Es el único de los cinco
+motores comparados con consultas al pasado dentro del lenguaje. MongoDB lee
+instantáneas con `atClusterTime`, pero solo unos 5 minutos atrás por defecto
+(`minSnapshotHistoryWindowInSeconds = 300`); su recuperación a un instante de
+Atlas restaura una copia, no responde una consulta. PostgreSQL lo dice en su
+documentación: «does not currently support system time» (hace falta una
+extensión o disparadores; `WITHOUT OVERLAPS` de la 18 es tiempo de aplicación).
+Neo4j y ArangoDB no lo ofrecen: copia y restauración, o modelarlo a mano.
+
+**Lo que cuesta y lo que falla, medido:**
+
+- **Disco:** el mismo banco (5 + 300 clientes) ocupa 26 MB sin versionado y
+  42 MB con él (+62 %), porque cada pago reescribe el saldo y se guarda cada
+  versión. Tiempo de carga igual (55 s frente a 53 s, una pasada de cada: la
+  diferencia es ruido). De ahí la retención de 30 días y no «para siempre».
+- **Un fallo del motor que fabricaba pruebas falsas** (surrealdb#7601, arreglado
+  solo en la rama principal): recorrer una tabla o una relación con `VERSION`
+  devuelve también registros **borrados antes** de esa fecha. Medido: Jose se
+  había desvinculado de un aparato y el recorrido lo seguía poniendo como
+  usuario. Leer **por id** sí es correcto, así que cada recorrido da
+  *candidatos* y cada candidato se *confirma* leyéndolo por su id en esa fecha
+  (`fn::owners_at`, `fn::users_at`). El test tiene una trampa por cada sitio
+  donde se confirma.
+- **El fallo depende del camino de ejecución:** la misma llamada,
+  `fn::owners_at(account:jose, $at)`, devuelve la prueba falsa ejecutada
+  directamente y la correcta dentro de un `.map(...)`. Dentro de
+  `fn::investigate` no se manifestaba, y la prueba en rojo lo destapó: romper la
+  confirmación no hacía fallar el test. Ahora los ayudantes se prueban
+  llamándolos directamente. La confirmación se queda aunque hoy no haga falta
+  en todos los caminos: no se puede depender de un detalle interno que cambiará.
+- **Madurez:** SurrealKV está oficialmente en beta, y la 3.3 quita el versionado
+  del motor en memoria. `CREATE ... VERSION` se acepta y se ignora en 3.x.
+
+Pruebas: `time_travel_test.py`, **20 comprobaciones** (requiere servidor con
+versionado: lo arrancan así `demo.sh` y `domex`); `time_travel_redteam.py`,
+**10/10**. Con el versionado activado siguen en orden las demás suites, incluida
+la carrera de pagos, y el oyente en vivo recibe las 6 alertas del ataque.
+
 ## Limitaciones que conviene declarar
 
 - **`LIVE SELECT` solo funciona en despliegue de un nodo.** Esto contradice el
@@ -408,6 +472,9 @@ Ninguna de estas aparece leyendo el código; todas salieron corriéndolo.
 | rechazar lanzando un error en un evento | rechazar devolviendo un código en un endpoint | El error deshace también lo que se quería guardar, como un contador de fallos |
 | `WHERE campo = $var.campo` | `LET $x = $var.campo; … WHERE campo = $x` | Con el campo de una variable el planificador **no usa el índice** y recorre la tabla: 72 ms frente a 1,2 ms por transferencia |
 | `LET $acc = $acc + 1` dentro de un `FOR` | recursión, o `map`/`filter` | El `LET` del bucle crea otra variable: el acumulador de fuera se queda en su valor inicial, sin error |
+| recorrer el grafo con `VERSION` y fiarse | recorrido = candidatos; confirmar cada uno leyéndolo por id con `VERSION` | surrealdb#7601: devuelve registros borrados ANTES de la fecha. Una prueba falsa en una investigación. Y solo en algunos caminos de ejecución |
+| `SELECT ... FROM (subconsulta) VERSION $t` | `LET $c = (...); SELECT ... FROM $c VERSION $t` | «VERSION clause cannot be used with a subquery source» |
+| `VERSION` antes de que existiera la tabla | — | Da error («The table 'x' does not exist»), no una lista vacía |
 
 Además, dos sutilezas de datos: `math::sum` de un conjunto vacío devuelve el
 entero `0`, no `0dec`, así que las comparaciones usan `!=` (tolerante al tipo) y
@@ -432,3 +499,8 @@ orden.
   **no** gana.
 - Límite de intentos también en el inicio de sesión: hoy la contraseña no lo
   tiene, solo el PIN.
+- El motor avisa de que el permiso del campo `customer.bizum_account` tiene
+  «dependencias opacas» y obliga a evaluar todos los campos calculados de cada
+  fila. Revisar la expresión.
+- Confirmar si SurrealKV purga de verdad las versiones más viejas que la
+  retención (documentado para RocksDB; para SurrealKV no consta).

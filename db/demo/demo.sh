@@ -9,6 +9,11 @@
 #   ./db/demo/demo.sh access   # permisos, actuando como clientes
 #   ./db/demo/demo.sh studio       # SurrealDB EN DISCO, para abrirlo con Surrealist
 #   ./db/demo/demo.sh studio-load  # carga las bases `bank` (historia) y `volume` (300 clientes)
+#   ./db/demo/demo.sh stage        # base `live` limpia, sin ataque, para la demo en directo
+#   ./db/demo/demo.sh coverup      # las mulas borran el rastro (tras `attack`)
+#
+# El servidor arranca CON versionado (máquina del tiempo, 09_time_travel): cada
+# estado anterior se guarda 30 días. SURREAL_DB elige la base de attack/coverup.
 #
 # SURREAL_BIN apunta al binario si `surreal` no está en el PATH.
 set -e
@@ -20,6 +25,10 @@ cd "$DIR"
 : ${ROUNDS:=20}
 # Fuera del repo: un worktree borrado no se lleva los datos de la presentación.
 : ${STUDIO_DATA:=$HOME/.local/share/dominican-express/surrealkv}
+# Versionado: SurrealKV (beta) y, en 3.2.4, también el motor en memoria (la 3.3
+# lo quita de memoria). 30 días: la investigación de una alerta es cosa de
+# días; la historia larga es el libro de apuntes, que no caduca.
+export SURREAL_DATASTORE_VERSIONED=true SURREAL_DATASTORE_RETENTION=30d
 
 case "$1" in
   server)
@@ -72,8 +81,20 @@ case "$1" in
     SURREAL_DB=volume ./surql.sh 03_detect.surql > /dev/null
     echo "volume: 300 customers, 60 days, planted fraud, sweep done"
     ;;
+  stage)
+    # Base aparte para la demo en directo: `bank` se queda como está.
+    curl -s -X POST "${SURREAL_URL:-http://127.0.0.1:8099}/sql" -u root:root -H "surreal-ns: dx" \
+         --data-binary "REMOVE DATABASE IF EXISTS live;" > /dev/null
+    SURREAL_DB=live ./apply.sh > /dev/null
+    SURREAL_DB=live ./surql.sh 01_seed.surql > /dev/null
+    echo "live: 5 customers, no attack yet"
+    ;;
+  coverup)
+    ./surql.sh 04_coverup.surql > /dev/null
+    echo "the mules covered their tracks: shared phone deleted, co-holder removed, account drained"
+    ;;
   *)
-    sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
     exit 1
     ;;
 esac
