@@ -28,6 +28,8 @@ python3 db/demo/payments_test.py     # API de pagos; --race añade la concurrenc
 python3 db/demo/payments_redteam.py  # rompe cada protección de la API, sobre el fichero real
 python3 db/demo/cards_test.py        # PIN con límite de intentos, tarjetas, notificaciones
 python3 db/demo/cards_redteam.py
+python3 db/demo/detect_test.py       # repetir el barrido no duplica alertas
+python3 db/demo/detect_redteam.py
 ```
 
 Usuarios de demo: `ana@dominican.test` / `demo-ana` (PIN 1234),
@@ -42,6 +44,20 @@ uv run --with websockets python3 db/demo/live_listener.py
 ```
 
 Todo de una vez, con subcomandos: `./db/demo/demo.sh` (sin argumentos lista los pasos).
+
+Para enseñarla con **Surrealist** (la interfaz gráfica oficial), la base va en
+disco y sobrevive entre sesiones (`~/.local/share/dominican-express`, unos
+32 MB):
+
+```sh
+./db/demo/demo.sh studio        # terminal aparte; se para con Ctrl-C
+./db/demo/demo.sh studio-load   # una vez: bases `bank` (5 clientes) y `volume` (300)
+```
+
+Conexión en Surrealist: HTTP `127.0.0.1:8099`, Root `root`/`root`, namespace
+`dx`. En la vista Query, el modo de resultado **Graph** dibuja cada registro
+devuelto como nodo y busca solo las aristas entre ellos: `SELECT * FROM account;`
+en `bank` enseña el anillo ana → luis → marta → ana.
 
 ## El principio que gobierna el diseño
 
@@ -101,6 +117,12 @@ mulas, dispositivo compartido, estructuración.
 
 Ambos escriben en `fraud_alert`, que es la única tabla que escucha el
 `LIVE SELECT` del panel.
+
+Los barridos se pueden repetir: cada alerta lleva un id que dice qué se ha visto
+(`['mule_ring', cuenta, miembros]`, `['shared_device', aparato, titulares]`,
+`['structuring', cuenta, día]`) y se escribe con `INSERT IGNORE`. Con `CREATE`,
+cada pasada duplicaba las alertas (22 → 44 → 66 en el banco de 300 clientes);
+`bench.py` no lo veía porque borra las alertas antes de medir.
 
 ### Resultado del escenario
 
