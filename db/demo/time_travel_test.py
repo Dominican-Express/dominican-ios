@@ -5,8 +5,8 @@ la investigación de una alerta recupera lo que se borró, y los dos relojes
 
     python3 db/demo/time_travel_test.py
 
-Requiere un servidor CON versionado (`demo.sh server`, `demo.sh studio` o
-`domex up`) y haber cargado 01_seed.surql. Lanza el ataque, el barrido y el
+Requiere un servidor CON versionado sobre SurrealKV (`demo.sh server`,
+`demo.sh studio` o `domex up`) y haber cargado 01_seed.surql. Lanza el ataque, el barrido y el
 encubrimiento, y lo deja ensuciado.
 """
 import subprocess
@@ -78,6 +78,12 @@ gone = [c for c in (inv_dev or {}).get("changes", []) if c.get("change") == "dev
 check("el móvil borrado reaparece, con sus 4 usuarios",
       len(gone) == 1 and gone[0]["device"] == "device:mula" and len(gone[0]["used_by"]) == 4, inv_dev)
 print("Sin pruebas falsas: lo deshecho ANTES de la alerta no aparece")
+# ¿Este motor reproduce el fallo? Si no, las trampas no tienen nada que cazar y
+# la prueba en rojo de la confirmación por id no puede caer (medido: en memoria).
+dat0 = one(f"SELECT VALUE at FROM {dev};")
+raw = root_last(f"SELECT VALUE <-owns<-customer FROM ONLY account:jose VERSION d'{dat0}';")
+if "customer:sara" not in (raw or []):
+    print("  [aviso] este motor no reproduce surrealdb#7601: usa SurrealKV (demo.sh server)")
 devs = {d["id"]: d for d in (inv_dev or {}).get("devices", [])}
 check("el aparato que jose dejó antes no sale en su investigación", "device:old" not in devs, list(devs))
 check("sara, que dejó el móvil de ana antes, no figura como usuaria",

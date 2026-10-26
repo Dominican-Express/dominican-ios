@@ -56,8 +56,8 @@ CASES = [
 
     ("el aviso llega a TODOS los titulares",
      "08_cards.surql",
-     "FOR $who IN (SELECT VALUE in FROM owns WHERE out = $after.account) {",
-     "FOR $who IN (SELECT VALUE in FROM owns WHERE out = $after.account AND role = 'titular') {",
+     "FOR $who IN $after.account<-owns<-customer {",
+     "FOR $who IN $after.account<-owns[WHERE role = 'titular']<-customer {",
      "luis también: es cotitular de la cuenta que paga"),
 
     ("el importe de un aviso no se puede cambiar",

@@ -107,6 +107,10 @@ DEFINE FUNCTION OVERWRITE fn::place_order($key: string, $kind: string,
     LET $limits = (SELECT * FROM ONLY setting:limits);
     LET $reject = IF $from = NONE OR $from NOTINSIDE $auth.customer->owns->account {
             [403, 'not_your_account']
+        } ELSE IF $from.frozen_at != NONE {
+            -- Sin decir por qué: avisar a un sospechoso de que se le investiga
+            -- está prohibido (10_controls).
+            [423, 'account_frozen']
         } ELSE IF $to = NONE {
             [404, 'destination_not_found']
         } ELSE IF $from = $to {

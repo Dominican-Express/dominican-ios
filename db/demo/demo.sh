@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Guion de la demo en clase. Un subcomando por paso, para no teclear en directo.
 #
-#   ./db/demo/demo.sh server   # terminal 1: arranca SurrealDB en memoria
+#   ./db/demo/demo.sh server   # terminal 1: arranca SurrealDB de pruebas (SurrealKV temporal)
 #   ./db/demo/demo.sh reset    # deja la base limpia, con esquema y datos
 #   ./db/demo/demo.sh listen   # terminal 2: alertas en vivo (en inglés)
 #   ./db/demo/demo.sh attack   # terminal 3: lanza el ataque y el barrido
@@ -10,7 +10,8 @@
 #   ./db/demo/demo.sh studio       # SurrealDB EN DISCO, para abrirlo con Surrealist
 #   ./db/demo/demo.sh studio-load  # carga las bases `bank` (historia) y `volume` (300 clientes)
 #   ./db/demo/demo.sh stage        # base `live` limpia, sin ataque, para la demo en directo
-#   ./db/demo/demo.sh coverup      # las mulas borran el rastro (tras `attack`)
+#   ./db/demo/demo.sh coverup      # las mulas, como clientes, intentan borrar el rastro (tras `attack`)
+#   ./db/demo/demo.sh insider      # un empleado con root sí borra; la auditoría lo recoge
 #
 # El servidor arranca CON versionado (máquina del tiempo, 09_time_travel): cada
 # estado anterior se guarda 30 días. SURREAL_DB elige la base de attack/coverup.
@@ -32,8 +33,14 @@ export SURREAL_DATASTORE_VERSIONED=true SURREAL_DATASTORE_RETENTION=30d
 
 case "$1" in
   server)
+    # SurrealKV y NO memoria: es el motor de `studio` y de `domex`, y el fallo
+    # surrealdb#7601 (09_time_travel) solo aparece en él. Medido: en memoria la
+    # prueba en rojo de la máquina del tiempo bajaba a 6/10, porque no había
+    # fallo que cazar. Además la 3.3 quita el versionado del motor en memoria.
+    # Carpeta temporal, nueva en cada arranque.
+    rm -rf "${TMPDIR:-/tmp}/dominican-express-server"
     exec "$SURREAL_BIN" start --username root --password root \
-         --bind 127.0.0.1:8099 --no-banner memory
+         --bind 127.0.0.1:8099 --no-banner "surrealkv://${TMPDIR:-/tmp}/dominican-express-server"
     ;;
   reset)
     ./apply.sh > /dev/null
@@ -90,11 +97,15 @@ case "$1" in
     echo "live: 5 customers, no attack yet"
     ;;
   coverup)
+    python3 coverup.py
+    ;;
+  insider)
     ./surql.sh 04_coverup.surql > /dev/null
-    echo "the mules covered their tracks: shared phone deleted, co-holder removed, account drained"
+    echo "an insider with root deleted the shared phone, removed a co-holder and drained an account"
+    echo "every step is in audit_log; fn::investigate rebuilds the alert as it was"
     ;;
   *)
-    sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'
     exit 1
     ;;
 esac

@@ -17,9 +17,14 @@ def main():
     ap.add_argument("--ops", type=int, default=300)
     a = ap.parse_args()
     rnd = random.Random(1)
+    # Las cuentas congeladas por fraude (10_controls) rechazan el pago al
+    # instante: contarlas inflaría los pagos por segundo.
+    frozen = {r for r in root_last_all("SELECT VALUE <string>id FROM account WHERE frozen_at != NONE;")[-1]["result"]}
     stmts = []
     for _ in range(a.ops):
         i, j = rnd.randrange(a.customers), rnd.randrange(a.customers)
+        if f"account:c{i}" in frozen:
+            continue
         if rnd.random() < 0.5:
             stmts.append(f"RETURN fn::charge_card(card:c{i}, 1.00dec, 'Bench', (-3.70, 40.41));")
         elif i != j:
