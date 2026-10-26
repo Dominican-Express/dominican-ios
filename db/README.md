@@ -32,6 +32,8 @@ python3 db/demo/detect_test.py       # repetir el barrido no duplica alertas
 python3 db/demo/detect_redteam.py
 python3 db/demo/time_travel_test.py      # máquina del tiempo; servidor CON versionado
 python3 db/demo/time_travel_redteam.py
+python3 db/demo/controls_test.py         # congelar, no borrar, auditoría con quién
+python3 db/demo/controls_redteam.py
 ```
 
 Usuarios de demo: `ana@dominican.test` / `demo-ana` (PIN 1234),
@@ -416,6 +418,11 @@ Neo4j y ArangoDB no lo ofrecen: copia y restauración, o modelarlo a mano.
   confirmación no hacía fallar el test. Ahora los ayudantes se prueban
   llamándolos directamente. La confirmación se queda aunque hoy no haga falta
   en todos los caminos: no se puede depender de un detalle interno que cambiará.
+- **El fallo solo existe en SurrealKV.** En el motor en memoria el recorrido
+  responde bien, así que las trampas no tienen nada que cazar: la prueba en rojo
+  bajó a 6/10 sin que el código hubiera cambiado. Probábamos sobre un motor
+  distinto del de producción. Desde entonces `demo.sh server` arranca SurrealKV
+  en una carpeta temporal, y el test avisa si el motor no reproduce el fallo.
 - **Madurez:** SurrealKV está oficialmente en beta, y la 3.3 quita el versionado
   del motor en memoria. `CREATE ... VERSION` se acepta y se ignora en 3.x.
 
@@ -423,6 +430,65 @@ Pruebas: `time_travel_test.py`, **20 comprobaciones** (requiere servidor con
 versionado: lo arrancan así `demo.sh` y `domex`); `time_travel_redteam.py`,
 **10/10**. Con el versionado activado siguen en orden las demás suites, incluida
 la carrera de pagos, y el oyente en vivo recibe las 6 alertas del ataque.
+
+## Controles de banco de verdad: que el rastro no se pueda borrar
+
+La máquina del tiempo investiga *después* de que se borre el rastro. Revisada
+con ojos de banco, no sirve como prueba: caduca a los 30 días (la ley pide
+5 años en la directiva europea 2015/849 y 10 en la española), vive en el mismo
+servidor que se investiga, no dice **quién** cambió algo y el motor está en
+beta con un fallo que fabricaba pruebas falsas. Así que se queda como
+herramienta de investigación rápida, y la protección real son tres piezas
+(`db/schema/10_controls.surql`):
+
+1. **No se borra, se termina.** Un cliente no puede borrar nada (permisos),
+   igual que no puede tocar un apunte del libro. Dejar de usar un aparato pasa
+   por `POST /devices/unlink`, que pone `ended_at` y deja la relación. El
+   detector de aparato compartido la sigue contando: desvincularse no borra que
+   lo usaste.
+2. **Auditoría con quién.** Cada cambio en relaciones, aparatos, tarjetas,
+   cuentas y clientes deja una fila en `audit_log` con el antes, el después,
+   cuándo y **quién** (`actor` = el usuario de la app, o NONE si fue root o un
+   proceso del banco; `via` dice cuál). La escriben eventos: no hay camino para
+   saltársela. Nadie la lee salvo el equipo antifraude, nadie la escribe salvo
+   los eventos y los campos son READONLY. **No** entran el PAN, el CVV ni el
+   NIF, porque la leen analistas. Y **no** se audita cada cambio de saldo: eso
+   ya está en el libro (inmutable) y en `payment_order`; duplicarlo llenaría la
+   tabla con una fila por pago.
+3. **Congelar al detectar, en proporción:**
+
+   | Alerta | Respuesta | Por qué |
+   |---|---|---|
+   | Anillo de mulas | congelar la cuenta y bloquear sus tarjetas | el patrón más claro de blanqueo |
+   | Viaje imposible | bloquear esa tarjeta | es la tarjeta, no la cuenta |
+   | Móvil compartido, estructuración, ráfaga | «en revisión» | puede ser una familia: no se castiga a cuatro personas por un móvil |
+   | Saldo bajo | nada | no es fraude |
+
+   Congelar bloquea las **salidas**; lo que entra sigue llegando. La API
+   responde `423 account_frozen` **sin decir por qué**: avisar a un sospechoso
+   de blanqueo de que se le investiga está prohibido (*tipping-off*). Hay una
+   segunda capa en `fn::transfer` y `fn::debit_at` por si alguien llama a la
+   función directamente. Liberar es `fn::release_account(cuenta, nota)`, solo
+   para el equipo antifraude, y queda auditado. Las tarjetas no se desbloquean
+   solas.
+
+**La demo**, tras `demo.sh attack`: `demo.sh coverup` (`coverup.py`) hace que
+Marta, una mula, intente borrar el rastro como cliente. Borrar el móvil por SQL:
+sin permiso, sigue ahí. Sacar su dinero: 423. Desvincular el móvil: lo consigue,
+pero queda marcado, no borrado, y la auditoría la apunta.
+
+**Lo que esto no cubre, y hay que decirlo:** root puede borrar filas, también
+de `audit_log`, y `REMOVE TABLE` no se puede impedir. Es el empleado cómplice
+de `demo.sh insider` (`04_coverup.surql`): la auditoría recoge cada paso con lo
+que había antes, y `fn::investigate` reconstruye la alerta. En un banco la
+auditoría se copia en caliente fuera de la base, a un almacenamiento que no se
+puede reescribir (WORM), con la retención legal. Esa copia no está montada.
+
+Pruebas: `controls_test.py`, **31 comprobaciones**; `controls_redteam.py`,
+**23/23**. La prueba en rojo destapó dos fallos de las propias pruebas: una
+consulta sin filas hacía reventar el test antes de decir qué fallaba, y una
+comprobación de la auditoría encontraba otra fila que también traía la fecha
+de congelación.
 
 ## Limitaciones que conviene declarar
 

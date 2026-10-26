@@ -49,6 +49,9 @@ check("…ni la estructuración", again.get("structuring") == first.get("structu
 
 # Un anillo NUEVO (jose -> sara -> ana -> jose) tiene que seguir saltando aunque
 # ana ya tenga alerta: si el id de la alerta fuera solo la cuenta, se tragaría.
+# La cuenta de ana quedó congelada por el primer anillo (10_controls): el equipo
+# antifraude la libera antes, como haría al cerrar el caso.
+root_last("RETURN fn::release_account(account:ana, 'caso cerrado');")
 for a, b, amt in [("jose", "sara", 100), ("sara", "ana", 95), ("ana", "jose", 90)]:
     root_last(f"RETURN fn::transfer(account:{a}, account:{b}, {amt}dec);")
 sweep()

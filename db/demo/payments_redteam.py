@@ -44,8 +44,8 @@ CASES = [
 
     ("fn::transfer cerrada a los clientes",
      "03_functions.surql",
-     "    RELATE $from->transfer->$to SET amount = $amount, txn = $tx.id;\n    RETURN $tx.id;\n} PERMISSIONS NONE;",
-     "    RELATE $from->transfer->$to SET amount = $amount, txn = $tx.id;\n    RETURN $tx.id;\n} PERMISSIONS FULL;",
+     "    RELATE $from->transfer->$to SET amount = $amount, txn = $tx.id, at = $when;\n    RETURN $tx.id;\n} PERMISSIONS NONE;",
+     "    RELATE $from->transfer->$to SET amount = $amount, txn = $tx.id, at = $when;\n    RETURN $tx.id;\n} PERMISSIONS FULL;",
      "un cliente no puede llamar a fn::transfer directamente"),
 
     ("las órdenes solo las lee quien las hizo",

@@ -32,6 +32,8 @@ DEFINE FUNCTION OVERWRITE fn::transfer($from: record<account>, $to: record<accou
     LET $t = (SELECT * FROM ONLY $to);
     IF $f = NONE OR $t = NONE { THROW "Cuenta inexistente" };
     IF $f.currency != $t.currency { THROW "Divisas distintas" };
+    -- Cuenta congelada por fraude (10_controls): no envía. Recibir sí puede.
+    IF $f.frozen_at != NONE { THROW "account_frozen" };
     IF fn::balance($from) < $amount { THROW "Saldo insuficiente" };
 
     LET $when = $at ?? time::now();
@@ -71,6 +73,7 @@ DEFINE FUNCTION OVERWRITE fn::credit($to: record<account>, $amount: decimal, $ki
 -- doble y el saldo materializado: sin esto, sembrar datos "a mano" descuadra
 -- la reconciliación y la prueba deja de significar nada.
 DEFINE FUNCTION OVERWRITE fn::debit_at($from: record<account>, $amount: decimal, $at: datetime) {
+    IF (SELECT VALUE frozen_at FROM ONLY $from) != NONE { THROW "account_frozen" };
     IF fn::balance($from) < $amount { THROW "Saldo insuficiente" };
     LET $tx = (CREATE ONLY txn SET kind = 'card');
     CREATE entry SET account = $from,        txn = $tx.id, amount = -$amount, at = $at;
