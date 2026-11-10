@@ -541,6 +541,7 @@ Ninguna de estas aparece leyendo el código; todas salieron corriéndolo.
 | recorrer el grafo con `VERSION` y fiarse | recorrido = candidatos; confirmar cada uno leyéndolo por id con `VERSION` | surrealdb#7601: devuelve registros borrados ANTES de la fecha. Una prueba falsa en una investigación. Y solo en algunos caminos de ejecución |
 | `SELECT ... FROM (subconsulta) VERSION $t` | `LET $c = (...); SELECT ... FROM $c VERSION $t` | «VERSION clause cannot be used with a subquery source» |
 | `VERSION` antes de que existiera la tabla | — | Da error («The table 'x' does not exist»), no una lista vacía |
+| `$array.map(\|$e\| fn::algo($e))` con miles de elementos | `SELECT VALUE fn::algo({...}) FROM tabla WHERE ...` | Si la función hace una consulta, el `.map` crece de forma **cuadrática**: 5.000 elementos 2,8 s, 20.000 elementos 49 s. El barrido de anillos tardaba 54 s con 20.874 transferencias de IBM; con `SELECT VALUE`, 1,0 s. Un `.map` trivial es lineal |
 
 Además, dos sutilezas de datos: `math::sum` de un conjunto vacío devuelve el
 entero `0`, no `0dec`, así que las comparaciones usan `!=` (tolerante al tipo) y

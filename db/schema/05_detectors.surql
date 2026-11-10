@@ -60,14 +60,28 @@ DEFINE FUNCTION OVERWRITE fn::ring_from($chain: array, $left: int, $rule: object
 } PERMISSIONS NONE;
 
 -- Los anillos que empiezan entre $from y $to, sin escribir nada.
+--
+-- La búsqueda se lanza desde el SELECT, no con `.map` sobre un array de
+-- puntos de partida. Medido en 3.2.4 con 20.874 transferencias del dataset de
+-- IBM: `.map` que en cada elemento llama a una función con una consulta dentro
+-- crece de forma CUADRÁTICA (5.000 → 2,8 s; 20.000 → 49 s), y así tardaba 54 s;
+-- con SELECT VALUE es lineal: 1,0 s, los mismos 7 anillos. Un `.map` trivial
+-- sobre el mismo array es lineal (20.000 en 26 ms): el coste lo pone la llamada.
 DEFINE FUNCTION OVERWRITE fn::find_rings($from: datetime, $to: datetime, $max_hops: int, $rule: object) {
-    LET $starts = (SELECT id, in, out, at, amount FROM transfer
-                   WHERE at > $from AND at <= $to AND in.kind = 'customer');
-    RETURN array::flatten($starts.map(|$e| fn::ring_from([$e], $max_hops - 1, $rule)));
+    LET $left = $max_hops - 1;
+    RETURN array::flatten(
+        SELECT VALUE fn::ring_from([{ id: id, in: in, out: out, at: at, amount: amount }], $left, $rule)
+        FROM transfer WHERE at > $from AND at <= $to AND in.kind = 'customer');
 } PERMISSIONS NONE;
 
+-- El barrido normal mira la última semana; con fechas se barre un periodo
+-- cualquiera (el dataset de IBM es de septiembre de 2022).
 DEFINE FUNCTION OVERWRITE fn::detect_rings($max_hops: int) {
-    LET $rings = fn::find_rings(time::now() - 7d, time::now(), $max_hops, $ring_rule);
+    RETURN fn::detect_rings_between(time::now() - 7d, time::now(), $max_hops);
+} PERMISSIONS NONE;
+
+DEFINE FUNCTION OVERWRITE fn::detect_rings_between($from: datetime, $to: datetime, $max_hops: int) {
+    LET $rings = fn::find_rings($from, $to, $max_hops, $ring_rule);
     -- cada anillo aparece una vez por cada cuenta desde la que se empieza
     LET $accounts = array::distinct(array::flatten($rings.map(|$r| $r.map(|$e| $e.in))));
     -- El id dice QUÉ se ha visto (cuenta + miembros de sus anillos) e INSERT
@@ -84,7 +98,7 @@ DEFINE FUNCTION OVERWRITE fn::detect_rings($max_hops: int) {
     };
     -- Segundo nivel: lo que solo ve la regla amplia va a revisión. Una cuenta
     -- ya congelada por un anillo estricto no necesita además este aviso.
-    LET $wide = fn::find_rings(time::now() - 7d, time::now(), $max_hops, $ring_rule_wide);
+    LET $wide = fn::find_rings($from, $to, $max_hops, $ring_rule_wide);
     LET $wide_accounts = array::distinct(array::flatten($wide.map(|$r| $r.map(|$e| $e.in))))
                               .filter(|$a| $a NOTINSIDE $accounts);
     FOR $a IN $wide_accounts {
