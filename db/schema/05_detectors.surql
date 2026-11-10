@@ -26,18 +26,22 @@
 -- Está escrito como función recursiva porque en SurrealQL un LET dentro de un
 -- FOR crea una variable nueva en vez de reasignar la de fuera: un acumulador
 -- en un bucle se queda en su valor inicial, sin ningún error.
-DEFINE FUNCTION OVERWRITE fn::ring_from($chain: array, $left: int) {
+-- La regla vive en un solo sitio y se puede pasar otra para calibrarla
+-- contra datos con la respuesta conocida (demo/aml_eval.py, dataset de IBM).
+DEFINE PARAM OVERWRITE $ring_rule VALUE { lo: 0.85dec, hi: 1dec, gap: 48h };
+
+DEFINE FUNCTION OVERWRITE fn::ring_from($chain: array, $left: int, $rule: object) {
     LET $last = $chain[array::len($chain) - 1];
     LET $origin = $chain[0].in;
     LET $seen = $chain.map(|$e| $e.in);
     -- Se recorren las aristas que SALEN de la cuenta (grafo), no la tabla
     -- `transfer` con un WHERE, y con variables simples: ver la nota del índice
-    -- en fn::transfer.
+    -- en fn::transfer. Por eso la regla se copia a variables antes del SELECT.
     LET $node = $last.out;
     LET $t0 = $last.at;
-    LET $t1 = $last.at + 48h;
-    LET $hi = $last.amount;
-    LET $lo = $last.amount * 0.85dec;
+    LET $t1 = $last.at + $rule.gap;
+    LET $hi = $last.amount * $rule.hi;
+    LET $lo = $last.amount * $rule.lo;
     LET $next = (SELECT id, in, out, at, amount FROM $node->transfer
                  WHERE at > $t0 AND at <= $t1 AND amount <= $hi AND amount >= $lo);
     LET $closed = $next.filter(|$e| $e.out = $origin AND array::len($chain) >= 2)
@@ -45,13 +49,18 @@ DEFINE FUNCTION OVERWRITE fn::ring_from($chain: array, $left: int) {
     IF $left <= 1 { RETURN $closed };
     LET $open = $next.filter(|$e| $e.out != $origin AND $e.out NOTINSIDE $seen);
     RETURN array::concat($closed,
-        array::flatten($open.map(|$e| fn::ring_from(array::append($chain, $e), $left - 1))));
+        array::flatten($open.map(|$e| fn::ring_from(array::append($chain, $e), $left - 1, $rule))));
+} PERMISSIONS NONE;
+
+-- Los anillos que empiezan entre $from y $to, sin escribir nada.
+DEFINE FUNCTION OVERWRITE fn::find_rings($from: datetime, $to: datetime, $max_hops: int, $rule: object) {
+    LET $starts = (SELECT id, in, out, at, amount FROM transfer
+                   WHERE at > $from AND at <= $to AND in.kind = 'customer');
+    RETURN array::flatten($starts.map(|$e| fn::ring_from([$e], $max_hops - 1, $rule)));
 } PERMISSIONS NONE;
 
 DEFINE FUNCTION OVERWRITE fn::detect_rings($max_hops: int) {
-    LET $starts = (SELECT id, in, out, at, amount FROM transfer
-                   WHERE at > time::now() - 7d AND in.kind = 'customer');
-    LET $rings = array::flatten($starts.map(|$e| fn::ring_from([$e], $max_hops - 1)));
+    LET $rings = fn::find_rings(time::now() - 7d, time::now(), $max_hops, $ring_rule);
     -- cada anillo aparece una vez por cada cuenta desde la que se empieza
     LET $accounts = array::distinct(array::flatten($rings.map(|$r| $r.map(|$e| $e.in))));
     -- El id dice QUÉ se ha visto (cuenta + miembros de sus anillos) e INSERT
