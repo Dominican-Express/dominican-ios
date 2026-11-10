@@ -25,14 +25,15 @@ estricta, así que medir sobre él es medir sobre el dataset entero.
 import argparse
 import csv
 import os
-import statistics
 import sys
 import time
 from bisect import bisect_left, insort
-from collections import defaultdict
 from datetime import datetime, timezone
 
 import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from aml_common import eur_rates, key  # noqa: E402,F401
 
 EPS = 1e-9  # los importes van redondeados al céntimo; ensanchar no quita anillos
 
@@ -41,26 +42,8 @@ def minutes(s):
     return int(datetime.strptime(s, "%Y/%m/%d %H:%M").replace(tzinfo=timezone.utc).timestamp() // 60)
 
 
-def key(bank, acct):
-    return f"{int(bank)}_{acct}"
-
-
 def load(path, limit=0):
-    pair = defaultdict(list)
-    with open(path, newline="") as f:
-        r = csv.reader(f)
-        next(r)
-        for t in r:
-            if t[8] != t[6] and float(t[7]) > 0:
-                pair[(t[8], t[6])].append(float(t[5]) / float(t[7]))
-    usd = {"US Dollar": 1.0}
-    for (paid, recv), v in pair.items():
-        if recv == "US Dollar":
-            usd.setdefault(paid, statistics.median(v))
-    for (paid, recv), v in pair.items():
-        if paid == "US Dollar" and recv not in usd:
-            usd[recv] = 1 / statistics.median(v)
-    to_eur = {c: x / usd["Euro"] for c, x in usd.items()}
+    to_eur = eur_rates(path)
 
     ids = {}
     row, src, dst, tm, amt = [], [], [], [], []
@@ -84,7 +67,7 @@ def load(path, limit=0):
 
 def has_next(alive, src, dst, tm, amt, lo, hi, gap):
     """Para cada transferencia viva e (u→v): ¿sale de v otra viva f con
-    e.t < f.t <= e.t+gap y lo·e.amt <= f.amt <= hi·e.amt?"""
+    e.t < f.t <= e.t+gap y lo*e.amt <= f.amt <= hi*e.amt?"""
     out = np.zeros(len(src), bool)
     idx = np.flatnonzero(alive)
     # llegadas a v y salidas de v, ambas por (cuenta, tiempo)
@@ -128,7 +111,7 @@ def has_next(alive, src, dst, tm, amt, lo, hi, gap):
 
 def has_prev(alive, src, dst, tm, amt, lo, hi, gap):
     """Simétrico: ¿llega a u otra viva g con g.t < f.t <= g.t+gap y
-    lo·g.amt <= f.amt <= hi·g.amt?  ⇔  f.amt/hi <= g.amt <= f.amt/lo."""
+    lo*g.amt <= f.amt <= hi*g.amt?  ⇔  f.amt/hi <= g.amt <= f.amt/lo."""
     out = np.zeros(len(src), bool)
     idx = np.flatnonzero(alive)
     outg = idx[np.lexsort((tm[idx], src[idx]))]

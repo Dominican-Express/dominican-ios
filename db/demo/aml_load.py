@@ -27,11 +27,12 @@ import hashlib
 import http.client
 import json
 import os
-import statistics
 import sys
 import time
-from collections import defaultdict
 from urllib.parse import urlparse
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from aml_common import eur_rates, key, read_patterns  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCHEMA = os.path.join(HERE, "..", "schema")
@@ -58,12 +59,6 @@ def sql(text, db=None):
     return out
 
 
-def key(bank, acct):
-    # El CSV de transacciones escribe el banco con ceros a la izquierda (021174)
-    # y el de cuentas sin ellos: sin normalizar no casa ni una cuenta.
-    return f"{int(bank)}_{acct}"
-
-
 def rec(table, k):
     return f"{table}:⟨{k}⟩"
 
@@ -75,22 +70,6 @@ def iban(k):
 
 def ts(s):  # 2022/09/01 00:06 -> d'2022-09-01T00:06:00Z'
     return f"d'{s[:4]}-{s[5:7]}-{s[8:10]}T{s[11:16]}:00Z'"
-
-
-def read_patterns(path):
-    """{(timestamp, from, to, amount paid): (tipo, nº de intento)}"""
-    out, kind, n = {}, None, 0
-    for line in open(path):
-        line = line.strip()
-        if line.startswith("BEGIN"):
-            n += 1
-            kind = line.split(" - ")[1].split(":")[0]
-        elif line.startswith("END"):
-            kind = None
-        elif line and kind:
-            t = line.split(",")
-            out[(t[0], key(t[1], t[2]), key(t[3], t[4]), t[7])] = (kind, n)
-    return out
 
 
 def batches(items, size):
@@ -126,16 +105,12 @@ def main():
 
     # 1.ª pasada: tipos de cambio, cuentas usadas y divisa de cada cuenta
     t0 = time.time()
-    pair = defaultdict(list)
     acc_cur = {}
     rows = selfx = 0
     with open(trans, newline="") as f:
         r = csv.reader(f)
         next(r)
         for t in r:
-            # los tipos de cambio salen siempre del fichero entero, también con --limit
-            if t[8] != t[6] and float(t[7]) > 0:
-                pair[(t[8], t[6])].append(float(t[5]) / float(t[7]))
             if a.limit and rows >= a.limit:
                 continue
             rows += 1
@@ -147,17 +122,11 @@ def main():
                 continue
             acc_cur.setdefault(src, t[8])
             acc_cur.setdefault(dst, t[6])
-    usd = {"US Dollar": 1.0}
-    for (paid, recv), v in pair.items():
-        if recv == "US Dollar":
-            usd.setdefault(paid, statistics.median(v))
-    for (paid, recv), v in pair.items():
-        if paid == "US Dollar" and recv not in usd:
-            usd[recv] = 1 / statistics.median(v)
-    missing = {c for c in acc_cur.values()} - set(usd)
+    # los tipos de cambio salen siempre del conjunto entero, también con --limit
+    to_eur = eur_rates(trans)
+    missing = {c for c in acc_cur.values()} - set(to_eur)
     if missing:
         raise SystemExit(f"sin tipo de cambio para {missing}")
-    to_eur = {c: x / usd["Euro"] for c, x in usd.items()}
     print(f"1.ª pasada: {rows} filas, {selfx} autotransferencias fuera, "
           f"{len(acc_cur)} cuentas, {time.time() - t0:.0f} s")
 
