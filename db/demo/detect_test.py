@@ -59,5 +59,29 @@ new = counts()
 check("un anillo nuevo sigue avisando (jose, sara y ana otra vez)",
       new.get("mule_ring") == first.get("mule_ring") + 3, new)
 
+print("Segundo nivel: anillo que solo ve la regla amplia")
+check("el escenario no da posibles anillos por sí solo (lo de arriba ya es anillo estricto)",
+      new.get("possible_ring") is None, new)
+# Como en los datos de IBM: el importe CRECE en cada salto (+10 %). La regla
+# estricta no lo ve; la amplia sí, y eso va a revisión, no a congelar.
+for i, w in enumerate(("w1", "w2", "w3"), 1):
+    root_last(f"CREATE account:{w} SET iban = 'ES{i:022d}';")
+    root_last(f"RETURN fn::credit(account:{w}, 1000dec, 'payroll');")
+for a, b, amt in [("w1", "w2", 200), ("w2", "w3", 220), ("w3", "w1", 240)]:
+    root_last(f"RETURN fn::transfer(account:{a}, account:{b}, {amt}dec);")
+sweep()
+wide = counts()
+w = {r["id"]: r for r in root_last(
+    "SELECT id, frozen_at != NONE AS frozen, review_at != NONE AS review FROM [account:w1, account:w2, account:w3];")}
+check("el anillo que crece da posible anillo a sus 3 cuentas…", wide.get("possible_ring") == 3, wide)
+check("…y no anillo estricto", wide.get("mule_ring") == new.get("mule_ring"), wide)
+check("…las manda a revisión", all(r["review"] for r in w.values()), w)
+check("…sin congelarlas", not any(r["frozen"] for r in w.values()), w)
+both = root_last("SELECT VALUE account FROM fraud_alert WHERE kind = 'possible_ring' "
+                 "AND account IN (SELECT VALUE account FROM fraud_alert WHERE kind = 'mule_ring');")
+check("ninguna cuenta con anillo estricto recibe además posible anillo", both == [], both)
+sweep()
+check("repetir el barrido no duplica los posibles anillos", counts().get("possible_ring") == 3, counts())
+
 print(f"\n{'TODO EN ORDEN' if not FAILS else f'{len(FAILS)} FALLOS'}")
 sys.exit(1 if FAILS else 0)
