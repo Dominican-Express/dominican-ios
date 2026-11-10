@@ -26,23 +26,9 @@ import sys
 from itertools import product
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from aml_prefilter import key, load  # noqa: E402
+from aml_common import key, read_patterns  # noqa: E402
+from aml_prefilter import load  # noqa: E402
 from aml_rings import find_rings  # noqa: E402
-
-
-def read_patterns(path):
-    out, kind, n = {}, None, 0
-    for line in open(path):
-        line = line.strip()
-        if line.startswith("BEGIN"):
-            n += 1
-            kind = line.split(" - ")[1].split(":")[0]
-        elif line.startswith("END"):
-            kind = None
-        elif line and kind:
-            t = line.split(",")
-            out[(t[0], key(t[1], t[2]), key(t[3], t[4]), t[7])] = (kind, n)
-    return out
 
 
 def main():

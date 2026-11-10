@@ -24,7 +24,7 @@ from aml_prefilter import load  # noqa: E402
 def find_rings(edges, lo, hi, gap, hops):
     """edges: lista de (fila, src, dst, t, amt). Misma lógica que fn::ring_from:
     siguiente salto sale de la última cuenta, t0 < t <= t0+gap,
-    lo·amt <= amt' <= hi·amt; cierra si vuelve al origen con >= 3 saltos;
+    lo*amt <= amt' <= hi*amt; cierra si vuelve al origen con >= 3 saltos;
     no repite cuentas."""
     out = defaultdict(list)
     for e in edges:
