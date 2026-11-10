@@ -105,8 +105,24 @@ def main():
     ap.add_argument("--db", default="aml")
     ap.add_argument("--limit", type=int, default=0, help="solo las N primeras filas (pruebas)")
     ap.add_argument("--batch", type=int, default=2000)
+    ap.add_argument("--rows", help="cargar solo estas filas (salida de aml_prefilter.py) "
+                                   "+ las de los patrones de IBM + --background de fondo")
+    ap.add_argument("--background", type=int, default=20000,
+                    help="con --rows: nº aproximado de transferencias normales de fondo")
     a = ap.parse_args()
     trans = os.path.join(a.data, f"{a.set}_Trans.csv")
+    pats = read_patterns(os.path.join(a.data, f"{a.set}_Patterns.txt"))
+    chosen = {int(x) for x in open(a.rows).read().split()} if a.rows else None
+    total = sum(1 for _ in open(trans)) - 1 if a.rows else 0
+
+    def wanted(n, t):
+        """Sin --rows, todo. Con --rows: candidatas, filas de patrones y una
+        muestra fija de fondo (misma fila → misma decisión en cada carga)."""
+        if chosen is None or n in chosen:
+            return True
+        if (t[0], key(t[1], t[2]), key(t[3], t[4]), t[7]) in pats:
+            return True
+        return (n * 2654435761) % 2**32 < a.background / total * 2**32
 
     # 1.ª pasada: tipos de cambio, cuentas usadas y divisa de cada cuenta
     t0 = time.time()
@@ -123,6 +139,8 @@ def main():
             if a.limit and rows >= a.limit:
                 continue
             rows += 1
+            if not wanted(rows, t):
+                continue
             src, dst = key(t[1], t[2]), key(t[3], t[4])
             if src == dst:
                 selfx += 1
@@ -175,7 +193,6 @@ def main():
     print(f"{len(names)} clientes, {len(acc_cur)} cuentas, {len(owner)} titularidades, {time.time() - t1:.0f} s")
 
     # 2.ª pasada: transferencias y verdad
-    pats = read_patterns(os.path.join(a.data, f"{a.set}_Patterns.txt"))
     t2 = time.time()
     buf, truth = [], []
     n = loaded = laund = in_pat = 0
@@ -187,7 +204,7 @@ def main():
             if a.limit and n > a.limit:
                 break
             src, dst = key(t[1], t[2]), key(t[3], t[4])
-            if src == dst:
+            if src == dst or not wanted(n, t):
                 continue
             eur = float(t[7]) * to_eur[t[8]]
             buf.append(f"{{id:'r{n}',in:{rec('account', src)},out:{rec('account', dst)},"
