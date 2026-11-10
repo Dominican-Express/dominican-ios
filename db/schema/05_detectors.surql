@@ -26,9 +26,16 @@
 -- Está escrito como función recursiva porque en SurrealQL un LET dentro de un
 -- FOR crea una variable nueva en vez de reasignar la de fuera: un acumulador
 -- en un bucle se queda en su valor inicial, sin ningún error.
--- La regla vive en un solo sitio y se puede pasar otra para calibrarla
--- contra datos con la respuesta conocida (demo/aml_eval.py, dataset de IBM).
+-- DOS NIVELES, calibrados contra el dataset de IBM con la respuesta conocida
+-- (demo/aml_eval.py; calibrado en HI-Small, validado sin tocar en LI-Small):
+--   $ring_rule (estricta): la mula se queda comisión, el importe solo BAJA.
+--     6/54 ciclos de IBM, 100 % de precisión en los dos conjuntos → congelar.
+--   $ring_rule_wide (amplia): el importe puede CRECER hasta un 20 % (cambio
+--     de divisa, dinero que se suma por el camino) y el salto tardar 72 h.
+--     33/54 ciclos con 98,6 % de precisión al calibrar, 8/12 con 86,9 % al
+--     validar: 1 de cada 8 marcadas sería inocente → revisión, no congelar.
 DEFINE PARAM OVERWRITE $ring_rule VALUE { lo: 0.85dec, hi: 1dec, gap: 48h };
+DEFINE PARAM OVERWRITE $ring_rule_wide VALUE { lo: 0.90dec, hi: 1.20dec, gap: 72h };
 
 DEFINE FUNCTION OVERWRITE fn::ring_from($chain: array, $left: int, $rule: object) {
     LET $last = $chain[array::len($chain) - 1];
@@ -72,6 +79,20 @@ DEFINE FUNCTION OVERWRITE fn::detect_rings($max_hops: int) {
         INSERT IGNORE INTO fraud_alert {
             id: ['mule_ring', $a, $members],
             kind: 'mule_ring', score: 0.85, account: $a,
+            detail: { rings: $mine.map(|$r| $r.map(|$e| <string>$e.in)) }
+        };
+    };
+    -- Segundo nivel: lo que solo ve la regla amplia va a revisión. Una cuenta
+    -- ya congelada por un anillo estricto no necesita además este aviso.
+    LET $wide = fn::find_rings(time::now() - 7d, time::now(), $max_hops, $ring_rule_wide);
+    LET $wide_accounts = array::distinct(array::flatten($wide.map(|$r| $r.map(|$e| $e.in))))
+                              .filter(|$a| $a NOTINSIDE $accounts);
+    FOR $a IN $wide_accounts {
+        LET $mine = $wide.filter(|$r| $a INSIDE $r.map(|$e| $e.in));
+        LET $members = array::sort(array::distinct(array::flatten($mine.map(|$r| $r.map(|$e| $e.in)))));
+        INSERT IGNORE INTO fraud_alert {
+            id: ['possible_ring', $a, $members],
+            kind: 'possible_ring', score: 0.6, account: $a,
             detail: { rings: $mine.map(|$r| $r.map(|$e| <string>$e.in)) }
         };
     };

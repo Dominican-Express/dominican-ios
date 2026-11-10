@@ -29,6 +29,7 @@ DEFINE FIELD OVERWRITE released_note ON account TYPE option<string>;
 -- Respuesta PROPORCIONAL a cada alerta. Congelar a cuatro personas por
 -- compartir un móvil sería castigar a una familia: eso va a revisión.
 --   mule_ring          → congelar la cuenta (no envía dinero) y bloquear sus tarjetas
+--   possible_ring      → «en revisión»: anillo que solo ve la regla amplia (05)
 --   impossible_travel  → bloquear la tarjeta
 --   shared_device, structuring, velocity → «en revisión»: un analista mira
 --   low_balance        → nada
@@ -44,7 +45,7 @@ DEFINE EVENT OVERWRITE respond ON fraud_alert WHEN $event = 'CREATE' THEN {
     } ELSE IF $kind = 'impossible_travel' {
         LET $card = $after.card;
         UPDATE $card SET blocked = true WHERE blocked = false;
-    } ELSE IF $kind IN ['shared_device', 'structuring', 'velocity'] {
+    } ELSE IF $kind IN ['possible_ring', 'shared_device', 'structuring', 'velocity'] {
         LET $accs = IF $after.device != NONE {
             array::flatten($after.detail.holders.map(|$c| type::record($c)->owns->account))
         } ELSE { [$after.account] };
