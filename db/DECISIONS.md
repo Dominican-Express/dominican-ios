@@ -27,6 +27,7 @@ explained in [FUNDAMENTALS.md](FUNDAMENTALS.md); the critical assessment is in
 | 16 | Lossless prefilter before the graph search |
 | 17 | Official SDK for the demo client, standard library for tests |
 | 18 | Surrealist instead of a custom dashboard |
+| 19 | The cluster runs on TiKV through TiUP, natively, and is not the demo node |
 
 ## 1. SurrealDB instead of the alternatives
 
@@ -458,3 +459,28 @@ graded deliverable, which is the database).
 
 **Consequences.** The database persists on disk between sessions (about 32 MB)
 so the demo can be prepared in advance. The iOS app still uses mock data.
+
+## 19. The cluster runs on TiKV through TiUP, natively, and is not the demo node
+
+**Context.** The course asks for scalability. SurrealDB distributes by running
+stateless nodes on top of TiKV; our laptop has little free disk and no fan.
+
+**Decision.** A local cluster of 1 PD, 3 TiKV and 2 SurrealDB nodes, started
+with TiUP playground (`demo.sh cluster-up`), with the 5 GB per-node disk
+reservation off and the block cache at 256 MB (`cluster/tikv.toml`). The live
+demo and the time machine stay on the single SurrealKV node.
+
+**Alternatives considered.** Docker images (rejected: about 1.1 GB of images
+against about 110 MB of native binaries); `tiup cluster` on separate machines
+(rejected: we have one laptop each).
+
+**Evidence.** 15 s to start, about 1.1 GB of RAM and 2 % CPU idle, 299 MB of
+binaries. Five of six suites pass on TiKV; time travel cannot ("does not
+support versioned queries"). A live query on one node got 0 of 5 changes made
+on the other. Killing the leader of the written region: writes failed with an
+error for 9 to 12 s, none lost or half applied ([CLUSTER.md](CLUSTER.md)).
+
+**Consequences and costs.** Two configurations to explain: a cluster that
+survives a dead node but has no time travel or cross-node live queries, and a
+single node that has both. On a real cluster the fraud dashboard would have to
+listen on every node.

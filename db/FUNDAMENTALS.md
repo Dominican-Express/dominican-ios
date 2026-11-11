@@ -250,16 +250,24 @@ Two features do not cross this line in the version we used:
 - **Live queries across nodes.** `LIVE SELECT` notifies the connection that
   opened it. Delivering changes made on *other* nodes is listed in the
   SurrealDB documentation as an Enterprise feature ("distributed live
-  queries"). Not measured by us on a cluster.
+  queries"). Measured on our cluster: a live query on node B received 5 of 5
+  changes written through B and 0 of 5 written through node A.
 - **Versioning (time travel)** is a SurrealKV feature, so it is not available
-  on TiKV. In 3.3, versioning is also removed from the memory engine.
+  on TiKV: on our cluster `SELECT ... VERSION` fails with "The underlying
+  datastore does not support versioned queries". In 3.3, versioning is also
+  removed from the memory engine.
 
 So our real-time demo and time machine run on a single SurrealKV node; the
 cluster is for showing replication and fault tolerance.
 
 ### Running more than one node
 
-See CLUSTER.md (to be added).
+[CLUSTER.md](CLUSTER.md) runs this schema on 1 PD, 3 TiKV and 2 SurrealDB
+nodes on one laptop, kills a TiKV during writes and brings it back. Measured:
+killing a follower goes unnoticed; killing the leader of the region being
+written makes writes fail with an error for 9 to 12 s, until Raft elects a new
+leader, and no write is lost or half applied. Five of the six test suites pass
+on TiKV; the time travel suite cannot.
 
 ## 6. Security
 

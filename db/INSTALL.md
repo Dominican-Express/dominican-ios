@@ -146,6 +146,9 @@ It starts its own temporary server on port 8098, so your demo data is not
 touched. Expected last line: `ALL PASSED`. A red-team run breaks the schema on
 purpose and checks that its test catches it (see `DECISIONS.md`).
 
+The 3-node cluster is optional and needs one more tool, TiUP:
+[CLUSTER.md](CLUSTER.md).
+
 ## Troubleshooting
 
 | Symptom | Cause and fix |
