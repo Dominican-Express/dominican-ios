@@ -18,6 +18,13 @@
 #   ./db/demo/demo.sh coverup      # las mulas, como clientes, intentan borrar el rastro (tras `attack`)
 #   ./db/demo/demo.sh insider      # un empleado con root sí borra; la auditoría lo recoge
 #
+#   ./db/demo/demo.sh cluster-up       # 1 PD + 3 TiKV + 2 nodos SurrealDB (CLUSTER.md)
+#   ./db/demo/demo.sh cluster-status   # stores, líderes y nodos
+#   ./db/demo/demo.sh cluster-write 40 # escrituras por el nodo A, cuenta por el B
+#   ./db/demo/demo.sh cluster-kill     # mata el TiKV con más líderes
+#   ./db/demo/demo.sh cluster-revive   # lo relanza; se pone al día solo
+#   ./db/demo/demo.sh cluster-down     # lo para todo y borra los datos del clúster
+#
 # El servidor arranca CON versionado (máquina del tiempo, 09_time_travel): cada
 # estado anterior se guarda 30 días. SURREAL_DB elige la base de attack/coverup.
 #
@@ -167,8 +174,11 @@ case "$1" in
     echo "an insider with root deleted the shared phone, removed a co-holder and drained an account"
     echo "every step is in audit_log; fn::investigate rebuilds the alert as it was"
     ;;
+  cluster-*)
+    exec ../cluster/cluster.sh "${1#cluster-}" "${@:2}"
+    ;;
   *)
-    sed -n '2,24p' "$SELF" | sed 's/^# \{0,1\}//'
+    sed -n '2,31p' "$SELF" | sed 's/^# \{0,1\}//'
     exit 1
     ;;
 esac

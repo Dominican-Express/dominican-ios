@@ -1,0 +1,13 @@
+# TiKV a la medida de un portátil (lo usa `demo.sh cluster-up`, ver CLUSTER.md).
+#
+# reserve-space: por defecto cada TiKV escribe un fichero de relleno de 5 GB
+# para poder liberar sitio si el disco se llena. Tres nodos en un portátil son
+# 15 GB para nada, así que aquí va a 0. En un servidor real, dejar el valor
+# por defecto.
+[storage]
+reserve-space = "0MB"
+
+# La caché de bloques ocupa por defecto ~45 % de la RAM en cada nodo: tres
+# nodos se pelearían por la memoria. 256 MB cada uno sobran para la demo.
+[storage.block-cache]
+capacity = "256MB"

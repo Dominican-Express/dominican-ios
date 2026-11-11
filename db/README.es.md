@@ -492,9 +492,10 @@ de congelación.
 
 ## Limitaciones que conviene declarar
 
-- **`LIVE SELECT` solo funciona en despliegue de un nodo.** Esto contradice el
-  argumento de «escalabilidad distribuida»: hoy no se pueden tener las dos cosas
-  a la vez. Es más sólido decirlo que esconderlo.
+- **`LIVE SELECT` no cruza nodos.** Medido en el clúster (ver «Clúster»): un
+  LIVE en el nodo B recibió 5 de 5 cambios hechos por B y 0 de 5 hechos por A.
+  Hoy no se pueden tener las dos cosas a la vez sin la versión Enterprise. Es
+  más sólido decirlo que esconderlo.
 - Los eventos síncronos añaden coste a cada escritura. Es un compromiso asumido,
   no un descuido.
 - La alerta de dispositivo compartido no la ve ningún cliente, solo el banco:
@@ -509,6 +510,29 @@ de congelación.
   este proyecto pesa más que la base aplique los permisos siempre.
 - Añadir un contacto por teléfono revela si ese número es cliente del banco. Es
   lo mismo que hace Bizum.
+
+## Clúster: tres TiKV en el portátil
+
+Detalle, comandos y salida real en [CLUSTER.md](CLUSTER.md). Resumen de lo medido
+(MacBook Air M3, TiKV y PD v8.5.8 con TiUP playground, SurrealDB 3.2.4):
+
+- 1 PD + 3 TiKV + 2 nodos SurrealDB: arranca en 15 s, ~1,1 GB de RAM y ~2 % de
+  CPU en reposo, 299 MB de binarios en `~/.tiup`. Sin tocar la configuración,
+  cada TiKV reserva 5 GB de disco y ~45 % de la RAM para caché: `cluster/tikv.toml`
+  lo baja (reserva a 0, caché 256 MB).
+- Escribir por el nodo A y leer por el B funciona al momento: los nodos SurrealDB
+  no guardan nada.
+- Matar (SIGKILL) un TiKV seguidor: 20 de 20 escrituras bien. Matar el líder de
+  regiones que no se estaban escribiendo: 40 de 40. Matar el líder de la región
+  que se escribe: 5 y 7 escrituras fallidas **con error** en dos pasadas, y todo
+  sigue 9 a 12 s después. Ninguna perdida ni a medias: B cuenta justo las que
+  respondieron OK.
+- El TiKV relanzado se pone al día solo: con todo el liderazgo pasado a él, B
+  leyó también lo escrito mientras estaba muerto.
+- 5 de 6 suites pasan sobre TiKV; `time_travel` no puede («The underlying
+  datastore does not support versioned queries»).
+- Trampa: playground arrancado con 1 TiKV fija `max-replicas = 1` y no lo sube
+  al añadir más; los datos seguían en una sola copia con 3 TiKV vivos.
 
 ## Trampas de SurrealQL encontradas al ejecutar
 

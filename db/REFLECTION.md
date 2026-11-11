@@ -45,7 +45,7 @@ past inside the language.
 | Time travel bug | surrealdb#7601: traversals with `VERSION` return records deleted before that date; only on SurrealKV; depends on execution path | red team 6/10 on memory, 10/10 on SurrealKV |
 | Versioning | SurrealKV is beta; 3.3 removes versioning from the memory engine; purge of old versions in SurrealKV unconfirmed | README.es.md |
 | Live delivery | One subscriber: 30/30. Two subscribers at once: 23/30 and 24/30 as clients, 28/30 as root, with no error and the row saved | `demo/live_delivery_check.py` |
-| Distribution | Live queries across nodes are an Enterprise feature; versioning is SurrealKV only, so not on TiKV | SurrealDB docs; cluster not measured |
+| Distribution | Live queries do not cross nodes (Enterprise feature); versioning is SurrealKV only, so not on TiKV | 3-TiKV cluster: live query got 0 of 5 changes made on the other node; time travel suite fails ([CLUSTER.md](CLUSTER.md)) |
 | Planner | `WHERE field = $var.field` ignores the index: 72 ms against 1.2 ms per transfer | `EXPLAIN`, `write_bench.py` |
 | Hidden complexity | `.map` calling a function that queries grows quadratically: 5,000 items 2.8 s, 20,000 items 49 s; the IBM ring sweep took 54 s, 1.0 s with `SELECT VALUE` | README.es.md traps table |
 | Silent failures | `RETURN` inside `FOR` exits on the first iteration; `LET` inside `FOR` does not update the outer variable; a function's privileged `UPDATE` silently does nothing and still returns success | README.es.md traps table |
@@ -58,8 +58,9 @@ one was found by running it, measuring it or breaking it on purpose. Several
 fail **silently**, which is the dangerous kind in a bank.
 
 What we could not prove: scalability beyond 3,000 customers and about 100,000
-operations, behaviour on a disk server under heavy load, and anything about a
-real cluster (see CLUSTER.md, to be added). The 100 % detection on our own
+operations, behaviour on a disk server under heavy load, and a cluster on
+separate machines. Our cluster ran on one laptop ([CLUSTER.md](CLUSTER.md)):
+it shows replication and failover, not throughput or network partitions. The 100 % detection on our own
 bank only shows the implementation is correct, because we planted the fraud
 with the same rules.
 

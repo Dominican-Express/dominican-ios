@@ -30,6 +30,7 @@ and follow [DEMO.md](DEMO.md). Stop with `./db/demo/demo.sh down`.
 | [DECISIONS.md](DECISIONS.md) | Every engineering decision: alternatives, evidence, costs |
 | [REFLECTION.md](REFLECTION.md) | Strengths and limitations we observed, comparison, where SurrealDB fits |
 | [DATASET.md](DATASET.md) | The fraud detector tested on IBM's public anti-money-laundering dataset |
+| [CLUSTER.md](CLUSTER.md) | The same schema on a 3-node TiKV cluster: replication, killing a node, recovery |
 | [README.es.md](README.es.md) | The full development log in Spanish, with every measurement and every SurrealQL trap we hit |
 
 ## What is where
@@ -48,6 +49,7 @@ db/
 │   ├── 09_time_travel.surql investigate an alert as it was (versioned storage)
 │   └── 10_controls.surql   freeze, nothing is deleted, audit trail
 ├── demo/                   demo script, tests, red teams, benchmarks, IBM tools, Python client
+├── cluster/                local TiKV cluster (cluster.sh, tikv.toml), see CLUSTER.md
 └── data/ibm-aml/           6.5 MB sample of IBM's AML dataset (CDLA-Sharing-1.0)
 ```
 
@@ -60,12 +62,14 @@ db/
 | Mule rings, IBM data | 6 of 54 laundering cycles found before calibration; 33 of 54 after (98.6 % precision), 8 of 12 on a held-out set (86.9 %) |
 | Prefilter | IBM's 4,487,133 transfers reduced to 381 without losing a ring |
 | Tests | 6 suites; every test also run against code broken on purpose: 74 of 74 breaks caught |
+| Cluster | 3 TiKV: a crashed follower goes unnoticed; a crashed leader, 9 to 12 s of errors and no write lost |
 
 Where each number comes from: [DECISIONS.md](DECISIONS.md) and [DATASET.md](DATASET.md).
 
 ## Limits we declare
 
-A single node: replication and partitioning are explained, not yet demonstrated
-([FUNDAMENTALS.md](FUNDAMENTALS.md)). Fraud thresholds are calibrated on
+The cluster runs on one laptop: it shows replication and failover, not
+performance across machines ([CLUSTER.md](CLUSTER.md)). On TiKV there is no
+time travel, and live queries do not cross nodes. Fraud thresholds are calibrated on
 synthetic data. The audit trail lives in the same database; a real bank copies
 it out to write-once storage. More in [REFLECTION.md](REFLECTION.md).
