@@ -89,7 +89,7 @@ python3 db/demo/aml_sample.py --data "$DIR" --rows HI-Small_candidates_0.8_1.2_7
 | bank + account | `account:⟨bank_account⟩` | The transactions file writes the bank with leading zeros (`021174`), the accounts file without: they must be normalised or no account matches |
 | entity | `customer`, linked by `owns` | |
 | amount paid, currency | `transfer.amount` in EUR | Hops of one ring are in different currencies; the rule compares amounts. Rates: median of the ~72,000 cross-currency transactions in the set |
-| — | IBAN `ES` + 22 digits from a hash | The schema requires a unique Spanish IBAN |
+| (none) | IBAN `ES` + 22 digits from a hash | The schema requires a unique Spanish IBAN |
 | `Is Laundering`, pattern | table `aml_truth`, apart | The detector must not see the label, not even by accident |
 | self-transfers (591,212) | dropped | Not a movement between accounts; in a graph, a loop with no meaning |
 
@@ -171,5 +171,5 @@ meant to catch fan-in, fan-out and the rest, and it does not.
   typology; it is the account-level question an analyst would ask, not a
   ring-level one.
 - Exchange rates are one median per currency for the whole month.
-- The search found a SurrealDB performance trap on the way: see the README,
+- The search found a SurrealDB performance trap on the way: see README.es.md,
   "Trampas de SurrealQL" (`.map` calling a function that queries is quadratic).

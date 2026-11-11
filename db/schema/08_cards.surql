@@ -150,7 +150,7 @@ WHEN $event = "CREATE" AND $after.account.kind = 'customer' THEN {
     -- Recorrido de grafo, NO `SELECT … FROM owns WHERE out = …`: esa consulta
     -- recorría la tabla de aristas entera en cada apunte (EXPLAIN: TableScan)
     -- y era lo único de la ruta de pago que crecía con el banco. Medido con
-    -- demo/write_bench.py a 1.000 clientes: ver db/README.md, «Volumen».
+    -- demo/write_bench.py a 1.000 clientes: ver db/README.es.md, «Volumen».
     FOR $who IN $after.account<-owns<-customer {
         CREATE notification SET customer = $who, kind = $kind, account = $after.account,
             amount = math::abs($after.amount), concept = $after.txn.concept, txn = $after.txn;

@@ -5,7 +5,7 @@
 -- libro de apuntes `entry`, que es append-only. `balance` es un saldo
 -- materializado que, en SurrealDB 3.2, cumple además una función crítica:
 -- es el punto de conflicto write-write que serializa las transferencias
--- concurrentes. Ver db/README.md, sección "Concurrencia".
+-- concurrentes. Ver db/README.es.md, sección "Concurrencia".
 
 -- Los PERMISSIONS se expresan como TRAVESÍA DE GRAFO: "ves esta cuenta si
 -- cuelga de una arista `owns` tuya". La autorización usa el mismo modelo que

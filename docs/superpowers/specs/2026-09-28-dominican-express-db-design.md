@@ -1,7 +1,7 @@
 # Dominican Express — diseño de la base de datos
 
 Fecha: 2026-09-28. Asignatura: Bases de Datos Avanzadas (UFV).
-Detalle técnico y resultados medidos: `db/README.md`.
+Detalle técnico y resultados medidos: `db/README.es.md`.
 
 ## Alcance acordado
 
@@ -53,7 +53,7 @@ hace que las alertas aparezcan según ocurren.
 
 Autenticación con `DEFINE ACCESS`, permisos expresados como travesía de grafo y
 verificación por PIN mediante `EVENT`. Probado como cliente, con prueba en rojo
-de cada protección. Detalle en `db/README.md`, sección «Permisos».
+de cada protección. Detalle en `db/README.es.md`, sección «Permisos».
 
 ## Siguientes pasos
 

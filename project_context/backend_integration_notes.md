@@ -9,7 +9,7 @@ Separar repositorios de cuentas, tarjetas, movimientos y contactos cuando exista
 La simulación de pagos no debe convertirse silenciosamente en un envío real. Diseñar un servicio transaccional distinto con confirmación autenticada, idempotencia, comprobación de titularidad/límites y recibo autoritativo. Hoy los saldos permanecen intactos.
 
 ## Arquitectura decidida (2026-10-19): sin backend intermedio
-El documento original proponía un backend Java delante de SurrealDB. **Se descarta**: la app habla directamente con SurrealDB 3.2, que está pensada para ello. El detalle está en `db/README.md` («La API, dentro de la base de datos») y el código en `db/schema/07_api.surql`.
+El documento original proponía un backend Java delante de SurrealDB. **Se descarta**: la app habla directamente con SurrealDB 3.2, que está pensada para ello. El detalle está en `db/README.es.md` («La API, dentro de la base de datos») y el código en `db/schema/07_api.surql`.
 
 - **Sesión:** `POST /signin` con `{ns, db, ac: "banca", email, pass}`. Devuelve un token de usuario de la app, que se guarda en Keychain. iOS nunca lleva credenciales de la base: el token solo da los permisos de ese cliente.
 - **Lecturas:** consultas SurrealQL por `POST /sql` con el token. Los permisos de la base ya filtran a lo suyo: sus cuentas, sus movimientos, sus tarjetas (el PAN y el CVV solo tras verificar el PIN), sus contactos y los cotitulares.
