@@ -22,7 +22,7 @@ WHEN $event = "CREATE" AND $after.amount < 0dec
      AND $after.account.kind = 'customer' THEN {
     -- Variable simple y no `$after.account` dentro del WHERE: comparar con el
     -- CAMPO de una variable hace que SurrealDB 3.2 ignore el índice y recorra
-    -- la tabla entera (EXPLAIN: TableScan). Ver db/README.md, «Volumen».
+    -- la tabla entera (EXPLAIN: TableScan). Ver db/README.es.md, «Volumen».
     LET $acc = $after.account;
     LET $n = count(SELECT id FROM entry
                    WHERE account = $acc AND amount < 0dec

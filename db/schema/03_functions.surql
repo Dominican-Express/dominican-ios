@@ -20,7 +20,7 @@ DEFINE FUNCTION OVERWRITE fn::balance($acc: record<account>) {
 -- 3.2 estable NO existe (error de parseo). Por eso el `UPDATE ... SET balance`
 -- de abajo no es decorativo: al escribir el registro de la cuenta, crea el
 -- conflicto write-write que impide el descubierto por carrera.
--- Medido: 0/30 descubiertos con esta función, 7/30 sin ella. Ver db/README.md.
+-- Medido: 0/30 descubiertos con esta función, 7/30 sin ella. Ver db/README.es.md.
 -- $at solo lo pasa el generador de volumen (demo/gen_volume.py), para sembrar
 -- 90 días de historia. La API no lo expone: un cliente no fecha sus pagos.
 DEFINE FUNCTION OVERWRITE fn::transfer($from: record<account>, $to: record<account>, $amount: decimal,

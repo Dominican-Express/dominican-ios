@@ -1,6 +1,11 @@
 #!/bin/zsh
 # Guion de la demo en clase. Un subcomando por paso, para no teclear en directo.
 #
+#   ./db/demo/demo.sh up       # enciende la base EN DISCO en segundo plano (carga los datos la 1.ª vez)
+#   ./db/demo/demo.sh status   # ¿está encendida?
+#   ./db/demo/demo.sh down     # la apaga (solo la que encendió `up`)
+#   ./db/demo/demo.sh aml      # carga la muestra del dataset de IBM en la base `aml` y la barre
+#
 #   ./db/demo/demo.sh server   # terminal 1: arranca SurrealDB de pruebas (SurrealKV temporal)
 #   ./db/demo/demo.sh reset    # deja la base limpia, con esquema y datos
 #   ./db/demo/demo.sh listen   # terminal 2: alertas en vivo (en inglés)
@@ -18,6 +23,7 @@
 #
 # SURREAL_BIN apunta al binario si `surreal` no está en el PATH.
 set -e
+SELF="${0:A}"
 DIR="${0:A:h}"
 cd "$DIR"
 : ${SURREAL_BIN:=surreal}
@@ -31,7 +37,59 @@ cd "$DIR"
 # días; la historia larga es el libro de apuntes, que no caduca.
 export SURREAL_DATASTORE_VERSIONED=true SURREAL_DATASTORE_RETENTION=30d
 
+URL=${SURREAL_URL:-http://127.0.0.1:8099}
+PIDFILE="${STUDIO_DATA:h}/surreal.pid"
+alive() { curl -s -o /dev/null --max-time 1 "$URL/health"; }
+# Solo vale si ese PID sigue siendo NUESTRO surreal (los PID se reutilizan).
+ourpid() {
+  local pid
+  pid=$(cat "$PIDFILE" 2>/dev/null) || return 1
+  ps -p "$pid" -o command= 2>/dev/null | grep -q "surrealkv://$STUDIO_DATA" && echo "$pid"
+}
+has_data() {
+  curl -s -X POST "$URL/sql" -u root:root -H "Accept: application/json" -H "surreal-ns: dx" \
+       --data-binary "INFO FOR NS;" 2>/dev/null | grep -q '"bank"'
+}
+
 case "$1" in
+  up)
+    if alive; then echo "already running on $URL"; exit 0; fi
+    mkdir -p "${STUDIO_DATA:h}"
+    nohup "$SURREAL_BIN" start --username root --password root --bind 127.0.0.1:8099 \
+          --no-banner --log warn "surrealkv://$STUDIO_DATA" > "${STUDIO_DATA:h}/surreal.log" 2>&1 &!
+    echo $! > "$PIDFILE"
+    for i in {1..20}; do alive && break; sleep 0.5; done
+    alive || { echo "did not start; see ${STUDIO_DATA:h}/surreal.log"; exit 1; }
+    echo "running on $URL (data in ${STUDIO_DATA:h})"
+    if ! has_data; then
+      echo "first start: loading data (~1 min)…"
+      "$SELF" studio-load && "$SELF" stage
+    fi
+    echo "connect Surrealist over WebSocket: ws://127.0.0.1:8099, root / root, namespace dx"
+    echo "remember: ./db/demo/demo.sh down when you finish"
+    ;;
+  status)
+    if alive; then echo "running (PID $(ourpid || echo '?'))"; else echo "stopped"; fi
+    ;;
+  down)
+    pid=$(ourpid) || pid=""
+    if [[ -z "$pid" ]]; then
+      alive && echo "something on port 8099 was not started by 'up'; leaving it alone" \
+            || echo "already stopped"
+      exit 0
+    fi
+    kill "$pid"
+    for i in {1..20}; do ps -p "$pid" >/dev/null || break; sleep 0.25; done
+    rm -f "$PIDFILE"
+    echo "stopped"
+    ;;
+  aml)
+    # Muestra del dataset de IBM (DATASET.md): base `aml`, solo núcleo, grafo y detectores.
+    SURREAL_URL=$URL python3 aml_load.py --data ../data/ibm-aml --set HI-Small-sample --db aml | tail -1
+    curl -s -X POST "$URL/sql" -u root:root -H "Accept: application/json" -H "surreal-ns: dx" -H "surreal-db: aml" \
+         --data-binary "RETURN fn::detect_rings_between(d'2022-08-31T00:00:00Z', d'2022-09-20T00:00:00Z', 12);" > /dev/null
+    echo "aml: IBM sample loaded and swept (expected: 20 mule_ring, 191 possible_ring)"
+    ;;
   server)
     # SurrealKV y NO memoria: es el motor de `studio` y de `domex`, y el fallo
     # surrealdb#7601 (09_time_travel) solo aparece en él. Medido: en memoria la
@@ -58,11 +116,16 @@ case "$1" in
     echo "done. alerts are in the other terminal."
     ;;
   race)
+    # Base propia y recién creada: la prueba borra los apuntes, y en `bank` el
+    # ataque ya congeló a ana (no saldría ninguna transferencia).
+    export SURREAL_DB=race
+    curl -s -X POST "$URL/sql" -u root:root -H "surreal-ns: dx" \
+         --data-binary "REMOVE DATABASE IF EXISTS race;" > /dev/null
+    ./apply.sh > /dev/null && ./surql.sh 01_seed.surql > /dev/null
     echo "10 simultaneous transfers of the full balance, $ROUNDS rounds each"
     echo
-    DEMO_LANG=en ./concurrency_test.sh transfer 10 "$ROUNDS" | tail -1
-    DEMO_LANG=en ./concurrency_test.sh transfer_unsafe 10 "$ROUNDS" | tail -1
-    ./surql.sh 01_seed.surql > /dev/null   # la prueba ensucia los saldos: se restaura
+    DEMO_LANG=en ./concurrency_test.sh transfer 10 "$ROUNDS" | grep -E 'rounds|OJO'
+    DEMO_LANG=en ./concurrency_test.sh transfer_unsafe 10 "$ROUNDS" | grep -E 'rounds|OJO'
     ;;
   access)
     ./surql.sh 01_seed.surql > /dev/null
@@ -105,7 +168,7 @@ case "$1" in
     echo "every step is in audit_log; fn::investigate rebuilds the alert as it was"
     ;;
   *)
-    sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,24p' "$SELF" | sed 's/^# \{0,1\}//'
     exit 1
     ;;
 esac
