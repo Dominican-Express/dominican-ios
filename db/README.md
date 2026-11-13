@@ -31,6 +31,7 @@ and follow [DEMO.md](DEMO.md). Stop with `./db/demo/demo.sh down`.
 | [REFLECTION.md](REFLECTION.md) | Strengths and limitations we observed, comparison, where SurrealDB fits |
 | [DATASET.md](DATASET.md) | The fraud detector tested on IBM's public anti-money-laundering dataset |
 | [CLUSTER.md](CLUSTER.md) | The same schema on a 3-node TiKV cluster: replication, killing a node, recovery |
+| [APP_INTEGRATION.md](APP_INTEGRATION.md) | How the iOS app or the web talks to the database: sign-in, queries, endpoints, retries |
 | [README.es.md](README.es.md) | The full development log in Spanish, with every measurement and every SurrealQL trap we hit |
 
 ## What is where
@@ -73,3 +74,8 @@ performance across machines ([CLUSTER.md](CLUSTER.md)). On TiKV there is no
 time travel, and live queries do not cross nodes. Fraud thresholds are calibrated on
 synthetic data. The audit trail lives in the same database; a real bank copies
 it out to write-once storage. More in [REFLECTION.md](REFLECTION.md).
+
+## Licence
+
+Code: MIT ([LICENSE](LICENSE)). The IBM data sample in `data/ibm-aml/` keeps
+its own licence, CDLA-Sharing-1.0.
