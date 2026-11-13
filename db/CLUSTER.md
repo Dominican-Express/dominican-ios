@@ -3,17 +3,22 @@
 The rest of the project runs on one SurrealDB node. This guide runs the same
 schema on a small distributed cluster on one laptop and shows what a cluster
 gives a bank: **replication** (every piece of data on 3 machines),
-**fault tolerance** (kill one, keep working) and **stateless compute** (any
-SurrealDB node serves any request). The concepts are in
+**fault tolerance** (kill one, keep working), **stateless compute** (any
+SurrealDB node serves any request) and **one entry point**: a load balancer
+in front of the SurrealDB nodes, which is what the app talks to. The concepts are in
 [FUNDAMENTALS.md, section 5](FUNDAMENTALS.md#5-storage-engines-and-architecture).
 
 Every number and every output below was measured on a MacBook Air M3 (16 GB)
-with SurrealDB 3.2.4, TiKV and PD v8.5.8, TiUP 1.17.1.
+with SurrealDB 3.2.4, TiKV and PD v8.5.8, TiUP 1.17.1, HAProxy 3.4.7.
 
 ## What runs
 
 ```
-            client (curl, Surrealist, the Python SDK)
+        client (the iOS app, curl, Surrealist, the Python SDK)
+                           |
+                    HAProxy :8100                          one entry point: spreads requests,
+                           |                               takes a dead node out (stats :8404)
+               +-----------+-------------+
                |                         |
      SurrealDB node A :8101     SurrealDB node B :8102     stateless: parse, check
                |                         |                 permissions, run functions
@@ -27,8 +32,9 @@ with SurrealDB 3.2.4, TiKV and PD v8.5.8, TiUP 1.17.1.
 
 All of it on one machine, started with **TiUP playground**, PingCAP's tool for
 local TiKV clusters. A real deployment puts each TiKV and PD on its own host
-(3 PD for a highly available placement driver) and uses `tiup cluster`
-instead; the software and the behaviour are the same.
+(3 PD for a highly available placement driver), terminates TLS at the load
+balancer and runs two of them, and uses `tiup cluster` instead; the software
+and the behaviour are the same.
 
 ## Cost on a laptop
 
@@ -48,7 +54,7 @@ its block cache takes **about 45 % of RAM** per node. We checked the
 placeholder is not created (`find ~/.tiup -name 'space_placeholder*'` finds
 nothing).
 
-## Step 1: install TiUP
+## Step 1: install TiUP and HAProxy
 
 macOS or Linux (on Windows, inside WSL; TiUP has no native Windows build):
 
@@ -66,6 +72,9 @@ skip that step: `demo.sh` finds `~/.tiup/bin/tiup` on its own. Check:
 
 To remove everything later: `rm -rf ~/.tiup` and delete that PATH line.
 
+HAProxy, the load balancer (6.3 MB): `brew install haproxy` on macOS,
+`sudo apt install haproxy` on Debian or Ubuntu. Check: `haproxy -v` (3.x).
+
 ## Step 2: start the cluster
 
 SurrealDB 3.2.4 must be installed (see [INSTALL.md](INSTALL.md)). From the
@@ -77,12 +86,13 @@ repository root:
 
 ```
 starting 1 PD + 3 TiKV v8.5.8 (the first time downloads ~110 MB)…
-cluster up: PD 127.0.0.1:2379, 3 TiKV, SurrealDB nodes on :8101 (A) and :8102 (B)
-schema and seed loaded in dx/cluster through node A
+cluster up: HAProxy :8100 -> SurrealDB nodes :8101 (A), :8102 (B) -> PD :2379 -> 3 TiKV
+schema and seed loaded in dx/cluster; HAProxy stats on http://127.0.0.1:8404
 remember: ./db/demo/demo.sh cluster-down when you finish
 ```
 
-It needs ports 2379 (PD), 20160 to 20162 (TiKV), 8101 and 8102 free. It does
+It needs ports 2379 (PD), 20160 to 20162 (TiKV), 8100 and 8404 (HAProxy),
+8101 and 8102 free. It does
 not touch the single-node database on 8099.
 
 ```sh
@@ -96,6 +106,8 @@ store  address            state         leaders regions
 2      127.0.0.1:20161    Up                  0       5
 surreal :8101 up
 surreal :8102 up
+haproxy sees node A UP
+haproxy sees node B UP
 ```
 
 Every TiKV holds all 5 regions (3 copies of each); one copy of each region is
@@ -118,7 +130,8 @@ and another to `ws://127.0.0.1:8102` (root / root, namespace `dx`, database
 
 ## Step 4: kill a storage node and keep working
 
-Two terminals. In the first, 40 writes through node A, one every 0.25 s:
+Two terminals. In the first, 40 writes through HAProxy, one every 0.25 s
+(each line says which SurrealDB node served it):
 
 ```sh
 ./db/demo/demo.sh cluster-write 40
@@ -132,13 +145,15 @@ the TiKV that leads the most regions:
 ```
 
 What happens depends on whether the dead node led the region being written.
-We ran it three ways:
+We ran it four ways (the first three writing straight to node A, before we
+added the load balancer; the last one through HAProxy):
 
 | Killed | Writes during the run | Recovery |
 |---|---|---|
 | A follower (led nothing) | 20 of 20 OK, slowest 45 ms | nothing to recover |
 | The leader of 3 of 5 regions, not of the one being written | 40 of 40 OK, slowest 44 ms | nothing visible |
 | The leader of all 5 regions (two runs) | 5 and 7 failed with an error, then OK again | writes resumed 9 to 12 s after the kill |
+| The leader of all 5 regions, through HAProxy (two runs) | 6 and 7 failed with an error, then OK again | writes resumed about 13 s after the kill |
 
 The hard case, from our run (trimmed):
 
@@ -182,14 +197,88 @@ caught up we moved the leadership of every region to it (PD API,
 `transfer-leader`) and read through node B: it returned all 35 writes,
 including the ones made while it was dead.
 
-## Step 6: stop
+## Step 6: kill a SurrealDB node
+
+The other half of the cluster: the compute nodes. Same two terminals, and this
+time kill (`SIGKILL`) SurrealDB node A while the writes go through HAProxy:
+
+```sh
+./db/demo/demo.sh cluster-write 40      # terminal 1
+./db/demo/demo.sh cluster-kill-node     # terminal 2, while it runs
+```
+
+From our run (trimmed):
+
+```
+19:35:45  write 9 via HAProxy -> node A: OK 49 ms
+19:35:45  write 10 via HAProxy -> node B: OK 41 ms
+          (node A killed)
+19:35:45  write 11 via HAProxy -> node B: OK 44 ms
+...                                          every write now goes to B
+19:35:55  write 40 via HAProxy -> node B: OK 46 ms
+the cluster now holds: 40 beats in total
+```
+
+Three runs, **40 of 40 writes OK every time, none slower than 52 ms**. The
+requests alternate A, B, A, B until A dies; from then on all go to B. The
+request that tries A after it died fails to connect, and HAProxy sends it to B
+before anything was sent, so the client never sees an error. HAProxy takes A
+out of the rotation after two failed health checks; `./db/demo/demo.sh
+cluster-revive-node` starts it again and it goes back in after two good ones.
+The page at http://127.0.0.1:8404 shows each node turn red and green.
+
+## Step 7: stop
 
 ```sh
 ./db/demo/demo.sh cluster-down
 ```
 
-Stops the two SurrealDB nodes, PD and the three TiKV (only the processes this
+Stops HAProxy, the two SurrealDB nodes, PD and the three TiKV (only the processes this
 cluster started) and deletes the cluster data. The binaries stay in `~/.tiup`.
+
+## The load balancer
+
+**Why one.** The SurrealDB nodes keep no state, so any of them can serve any
+request. Without a balancer the app would have to know every node and decide
+itself which one is alive. With one, the app has a single address, the load is
+spread, and a dead node is taken out before the app notices (step 6). It is
+the usual design in front of stateless services.
+
+**Why HAProxy.** It checks every node actively, once a second, so a dead node
+leaves the rotation even when no request has failed yet; the free version of
+nginx only notices when a real request fails. It passes WebSockets (the SDKs
+and live queries), can retry on another node, and has a status page. Caddy
+would also work, with less control over retries.
+
+**How it is configured** (`cluster/haproxy.cfg`):
+
+| Setting | Why |
+|---|---|
+| `balance roundrobin` | requests take turns between A and B |
+| health check `GET /status` every 1 s, out after 2 failures, back after 2 successes | a dead node leaves in about 2 s |
+| `retry-on conn-failure` + `redispatch` | retry on the other node **only if the connection failed**, so the request was never sent: a payment can never reach the database twice because of the balancer (and if it did, the order `id` makes it idempotent) |
+| `timeout tunnel 1h` | a WebSocket stays open on the node where it started |
+| `X-Served-By` response header | shows which node answered |
+
+**The health check must not test what all nodes share.** Our first version
+checked `/health`, which also checks the storage. When the TiKV leader died,
+both nodes answered `/health` too slowly, HAProxy took **both** out ("backend
+has no server available") and answered errors itself until they passed two
+checks again: **22 of 40 writes failed**, against 5 to 7 with no balancer at
+all. The balancer was making a storage failure worse. With `/status` (is this
+node alive?) the same test gave 6 and 7 failures, all of them from the storage
+election, none from HAProxy. If what fails is shared by every node, taking
+nodes out fixes nothing.
+
+**Live queries through a balancer.** A WebSocket goes through HAProxy fine: a
+live query opened through it got 3 of 3 changes made on the same connection,
+in three runs. But the connection stays on one node, and live queries do not
+cross nodes. With the live query open through HAProxy and 10 writes spread by
+HAProxy over A and B, it received **5 of 10** in each of three runs: all the
+writes that landed on its own node, none from the other. So, in this
+architecture, a fraud dashboard listens on every node (one connection per
+node), and the app reads its alerts again when it reconnects, instead of
+trusting a single live query.
 
 ## What works on TiKV, and what does not
 
@@ -216,6 +305,14 @@ node, and the cluster is the demonstration of replication and fault tolerance.
 
 ## Traps we hit
 
+- **A health check on a shared dependency.** `/health` checks the storage too;
+  with it HAProxy removed both nodes during a TiKV election and turned 6 or 7
+  failed writes into 22. Use `/status` (see "The load balancer").
+- **Our own test lost live notifications.** A test client that waits for the
+  reply to its own query and throws away everything else also throws away the
+  live notifications that arrive in between: it reported 0 of 3. Counting
+  them while waiting gave 3 of 3.
+
 - **Starting with 1 TiKV and adding more leaves one copy of the data.**
   Playground sets `max-replicas` from the number of TiKV it starts with, and
   does not raise it on `scale-out`. With 3 TiKV up, every region still had 1
@@ -238,6 +335,7 @@ tiup playground v8.5.8 --mode tikv-slim --pd 1 --kv 3 --without-monitor \
 curl -s -X POST http://127.0.0.1:2379/pd/api/v1/config/replicate -d '{"max-replicas":3}'
 surreal start --username root --password root --bind 127.0.0.1:8101 tikv://127.0.0.1:2379
 surreal start --username root --password root --bind 127.0.0.1:8102 tikv://127.0.0.1:2379
+haproxy -f db/cluster/haproxy.cfg
 SURREAL_URL=http://127.0.0.1:8101 SURREAL_DB=cluster ./db/demo/apply.sh
 SURREAL_URL=http://127.0.0.1:8101 SURREAL_DB=cluster ./db/demo/surql.sh 01_seed.surql
 ```
@@ -247,6 +345,7 @@ default. PD's HTTP API shows the state: `curl -s http://127.0.0.1:2379/pd/api/v1
 
 ## What this does not show
 
-Separate machines, network partitions between them, a load balancer in front
-of the SurrealDB nodes, and performance: three TiKV on one laptop share one
+Separate machines, network partitions between them, a second load balancer
+(here HAProxy itself is a single point of failure; in production two of them
+share a floating address), TLS, and performance: three TiKV on one laptop share one
 disk and one CPU, so throughput here says nothing about a real cluster.
