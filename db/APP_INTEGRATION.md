@@ -101,9 +101,51 @@ it is connected to ([CLUSTER.md](CLUSTER.md)).
 ## In the iOS app
 
 The app reads everything through the `BankRepository` protocol
-(`Project/Services`), today implemented by a mock. Connecting it means a
-`SurrealBankRepository` that does the calls above with `URLSession`; views and
-view models do not change. Money stays `Decimal` in the app and travels as a
-string. The current "send" screens are simulations and must not turn silently
-into real payments: a real one needs the authenticated endpoint, its `id` and
-its receipt.
+(`Project/Services`). Two implementations: `MockBankRepository` (fixed demo
+data, the default) and `SurrealBankRepository`, which does the calls above with
+`URLSession`. Views and view models do not change. Money stays `Decimal` in the
+app and travels as text.
+
+`SurrealBankRepository` in one request per screen load: it signs in once, then
+sends six SurrealQL statements in a single `POST /sql` (accounts with their
+holders, the last 50 ledger entries, cards with what was spent, the customers it
+may see, co-holders, notifications). A payment to a contact is a Bizum to that
+contact's phone (`/bizum`); a payment to an IBAN is a transfer (`/transfers`).
+Each attempt gets a new UUID as order `id`, and a write conflict is retried with
+the same `id`. Money requests are not in the database yet and are refused.
+
+### Run the app against the cluster (Xcode)
+
+1. Start the cluster: `./db/demo/demo.sh cluster-up` (HAProxy on `127.0.0.1:8100`;
+   the simulator shares the Mac's network, so `127.0.0.1` reaches it).
+2. Open `DominicanExpress.xcodeproj`, menu **Product > Scheme > Edit Scheme...**,
+   **Run > Arguments**: tick the four arguments already listed
+   (`-surreal-url http://127.0.0.1:8100`, `-surreal-db cluster`,
+   `-surreal-user ana@dominican.test`, `-surreal-pass demo-ana`).
+3. Run on an iPhone simulator. The app shows Ana's real account (balance
+   8,425.60 EUR, co-holder Luis), her card ending 4242 and her payroll entry.
+4. Bizum: choose **Luis Romero** (the screen preselects a demo name that is not
+   a customer, and the database refuses it), amount and send. The balance drops
+   by exactly that amount; `./db/demo/demo.sh cluster-status` and the HAProxy page
+   (http://127.0.0.1:8404) show the requests reaching the nodes.
+
+`Project/Info.plist` allows plain HTTP only to the local network
+(`NSAllowsLocalNetworking`); anything else still needs HTTPS. Untick the
+arguments to go back to the demo data.
+
+### Checked without Xcode
+
+The repository compiles in the `DominicanDomain` Swift package
+(`swift build`, Swift 6.4, Command Line Tools). Integration tests run it
+against a real database through HAProxy:
+
+```sh
+./db/demo/demo.sh cluster-up
+SURREAL_IT_URL=http://127.0.0.1:8100 SURREAL_IT_DB=cluster ./scripts/test.sh --filter Surreal
+```
+
+They check that Ana sees only her account, her co-holder and her card; that a
+Bizum of 12.50 to Luis lowers her balance by exactly 12.50; that a wrong
+password and a stranger as recipient are refused. Broken on purpose (contacts
+query without the filter, amount sent as a JSON number), the matching test
+fails. What these cannot check is the interface in the simulator.

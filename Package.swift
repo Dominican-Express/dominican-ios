@@ -7,7 +7,7 @@ let package = Package(
     platforms: [.macOS(.v14), .iOS(.v26)],
     products: [.library(name: "DominicanDomain", targets: ["DominicanDomain"])],
     targets: [
-        .target(name: "DominicanDomain", path: "Project", exclude: [
+        .target(name: "DominicanDomain", path: "Project", exclude: ["Info.plist",
             "App", "DesignSystem", "Resources", "Core/RootView.swift",
             "Features/Home", "Features/SharedAccount", "Features/Profile",
             "Features/Cards/Views", "Features/Cards/Components", "Features/Cards/Models",
