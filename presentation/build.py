@@ -1,6 +1,6 @@
 """Genera presentation/dominican-express.pptx (18 diapositivas, notas del orador).
 
-    uv run --with python-pptx --with matplotlib --with pillow --with qrcode python presentation/build.py
+    uv run --with python-pptx --with matplotlib --with pillow --with qrcode --with networkx python presentation/build.py
 
 Diseño: Brainstorm/slides-design.md en x-brain; cifras: db/*.md (ver README.md).
 """
@@ -44,6 +44,21 @@ def app_icon():
     return path
 
 
+def cover(s):
+    """Portada: el grafo real de transferencias de `volume`, anillos en violeta."""
+    picture(s, charts.graph("graph-right", 6.6, 6.6), x=int(I(6.6)), y=int(I(0.45)),
+            max_w=I(6.6), max_h=I(6.6))
+    picture(s, app_icon(), x=int(MARGIN), y=int(I(1.05)), max_w=I(1.1), max_h=I(1.1))
+    text(s, MARGIN, I(2.55), I(6.0), I(0.9), "Dominican Express", size=42, bold=True)
+    text(s, MARGIN, I(3.5), I(6.0), I(0.6), "A bank built inside SurrealDB", size=24,
+         color=MUTED)
+    text(s, MARGIN, I(4.65), I(6.0), I(1.2), "Jorge Pérez\nXabier Ariznabarreta\nJavier Pérez",
+         size=20)
+    text(s, MARGIN, I(6.05), I(6.0), I(0.4), "Advanced Databases, UFV", size=18, color=MUTED)
+    text(s, I(7.0), I(6.75), I(5.8), I(0.4), "2,827 transfers, 22 accounts in rings",
+         size=18, color=MUTED, font=MONO, align=PP_ALIGN.RIGHT)
+
+
 def commands(slide, lines, y=TOP + I(0.2)):
     """Chuleta de la demo: una línea por paso, número atenuado y orden en mono."""
     for i, (cmd, what) in enumerate(lines):
@@ -63,12 +78,10 @@ def build():
 JORGE. Good morning. We are Jorge, Xabier and Javier, and this is Dominican Express:
 a digital bank. The deliverable of this course is the database, and in our project the
 database is not just storage: the whole backend, from payments to fraud detection,
-lives inside it.""")
-    picture(s, app_icon(), x=int(I(1.1)), y=int(I(1.75)), max_w=I(4.0), max_h=I(4.0))
-    text(s, I(5.9), I(1.95), I(6.8), I(1.6), "A bank built\ninside SurrealDB", size=44, bold=True)
-    text(s, I(5.9), I(3.95), I(6.0), I(1.2), "Jorge Pérez\nXabier Ariznabarreta\nJavier Pérez",
-         size=22)
-    text(s, I(5.9), I(5.35), I(6.0), I(0.4), "Advanced Databases, UFV", size=18, color=MUTED)
+lives inside it. On the right, real data from our test bank: 2,827 transfers between
+300 customers over 60 days. The violet ones are the 22 accounts the database itself
+found moving money in rings.""")
+    cover(s)
 
     # 2 ---------------------------------------------------------------- Jorge
     s = frame(prs, 2, "The product", "iOS app in SwiftUI: mock data today", notes="""

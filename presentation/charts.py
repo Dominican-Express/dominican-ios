@@ -145,6 +145,42 @@ def terminal(name, highlights=(), width=11.0, size=22):
     return path
 
 
+def graph(name, w, h, dim=1.0):
+    """Grafo real de transferencias de la base `volume`; anillos en violeta.
+
+    Datos: assets/data/volume-graph.json (exportado de la base). Disposición
+    por fuerzas con semilla fija: sale igual en cada regeneración.
+    """
+    import json
+    import networkx as nx
+    d = json.loads((HERE / "assets" / "data" / "volume-graph.json").read_text())
+    ring = set(d["ring"])
+    G = nx.Graph()
+    for a, b, n in d["edges"]:
+        G.add_edge(a, b, n=n)
+    pos = nx.spring_layout(G, seed=7, k=0.9 / len(G) ** 0.5, iterations=200)
+    fig = plt.figure(figsize=(w, h))
+    ax = fig.add_axes([0, 0, 1, 1])
+    clean(ax)
+    for a, b in G.edges:
+        hot = a in ring and b in ring
+        (x1, y1), (x2, y2) = pos[a], pos[b]
+        ax.plot([x1, x2], [y1, y2], color=c(VIOLET if hot else LINE),
+                lw=2.2 if hot else 0.6, alpha=(1.0 if hot else 0.9) * dim,
+                zorder=3 if hot else 1, solid_capstyle="round")
+    xs = [pos[n][0] for n in G if n not in ring]
+    ys = [pos[n][1] for n in G if n not in ring]
+    ax.scatter(xs, ys, s=10, color=c(MUTED), alpha=0.75 * dim, zorder=2, linewidths=0)
+    ax.scatter([pos[n][0] for n in ring], [pos[n][1] for n in ring], s=46,
+               color=c(VIOLET), alpha=dim, zorder=4, linewidths=0)
+    xs_all = [p[0] for p in pos.values()]
+    ys_all = [p[1] for p in pos.values()]
+    mx, my = (max(xs_all) - min(xs_all)) * 0.04, (max(ys_all) - min(ys_all)) * 0.04
+    ax.set_xlim(min(xs_all) - mx, max(xs_all) + mx)
+    ax.set_ylim(min(ys_all) - my, max(ys_all) + my)
+    return save(fig, name)
+
+
 def all_charts():
     return {
         "race": race(),

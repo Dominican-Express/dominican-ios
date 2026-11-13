@@ -17,7 +17,7 @@ Requires [uv](https://docs.astral.sh/uv/) and the fonts **Geist** and
 computer that presents: PowerPoint does not embed them.
 
 ```sh
-uv run --with python-pptx --with matplotlib --with pillow --with qrcode python presentation/build.py
+uv run --with python-pptx --with matplotlib --with pillow --with qrcode --with networkx python presentation/build.py
 uv run --with python-pptx --with pillow python presentation/preview.py   # PNG per slide, warns if text overflows
 ```
 
@@ -33,7 +33,7 @@ uv run --with python-pptx --with pillow python presentation/preview.py   # PNG p
 
 | Slide | Figure | Source |
 |---|---|---|
-| 1 | ring ana 900, luis 880, marta 860 | `demo/02_attack.surql`, database `bank` after the attack |
+| 1 | graph: 2,827 transfers, 301 accounts, 22 in rings | database `volume` exported to `assets/data/volume-graph.json` |
 | 6 | Ana `titular`, Luis `cotitular` | query on `bank`, [DEMO.md](../db/DEMO.md) part A |
 | 7 | 0 of 20; 11 to 16 of 20 | `demo.sh race`, six runs on 2026-11-13 (16, 12, 11, 15, 12, 12); [DECISIONS.md](../db/DECISIONS.md) 3 |
 | 9 | SurrealDB 3.2.4, ALL PASSED | `surreal version`, `demo.sh up`, `test_all.sh --quick` (output trimmed) |
