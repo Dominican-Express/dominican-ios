@@ -58,7 +58,7 @@ db/
 
 | | |
 |---|---|
-| Concurrency | 10 simultaneous full-balance transfers: 0 overdrafts in 20 rounds (an unsafe variant: 11 to 13 of 20) |
+| Concurrency | 10 simultaneous full-balance transfers: 0 overdrafts in 20 rounds (an unsafe variant: 11 to 16 of 20, varying by run) |
 | Mule rings, own data | naive cycle search 53 s and 75 false positives; forwarding rule 0.03 s and 0 (100 customers) |
 | Mule rings, IBM data | 6 of 54 laundering cycles found before calibration; 33 of 54 after (98.6 % precision), 8 of 12 on a held-out set (86.9 %) |
 | Prefilter | IBM's 4,487,133 transfers reduced to 381 without losing a ring |

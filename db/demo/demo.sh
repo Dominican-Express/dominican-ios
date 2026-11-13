@@ -17,6 +17,7 @@
 #   ./db/demo/demo.sh stage        # base `live` limpia, sin ataque, para la demo en directo
 #   ./db/demo/demo.sh coverup      # las mulas, como clientes, intentan borrar el rastro (tras `attack`)
 #   ./db/demo/demo.sh insider      # un empleado con root sí borra; la auditoría lo recoge
+#   ./db/demo/demo.sh sdk          # CRUD desde Python con el SDK oficial, en su propia base `sdk`
 #
 #   ./db/demo/demo.sh cluster-up       # 1 PD + 3 TiKV + 2 nodos SurrealDB (CLUSTER.md)
 #   ./db/demo/demo.sh cluster-status   # stores, líderes y nodos
@@ -174,11 +175,21 @@ case "$1" in
     echo "an insider with root deleted the shared phone, removed a co-holder and drained an account"
     echo "every step is in audit_log; fn::investigate rebuilds the alert as it was"
     ;;
+  sdk)
+    # Base propia y recién creada: tras `attack`, Ana está congelada en `live`
+    # y su pago desde Python saldría 423 en vez de enseñar el cobro único.
+    curl -s -X POST "$URL/sql" -u root:root -H "surreal-ns: dx" \
+         --data-binary "REMOVE DATABASE IF EXISTS sdk;" > /dev/null
+    SURREAL_URL=$URL SURREAL_DB=sdk ./apply.sh > /dev/null
+    SURREAL_URL=$URL SURREAL_DB=sdk ./surql.sh 01_seed.surql > /dev/null
+    exec uv run -q --with-requirements requirements.txt python demo_client.py \
+         --url "ws://${URL#http://}/rpc" --db sdk
+    ;;
   cluster-*)
     exec ../cluster/cluster.sh "${1#cluster-}" "${@:2}"
     ;;
   *)
-    sed -n '2,31p' "$SELF" | sed 's/^# \{0,1\}//'
+    sed -n '2,32p' "$SELF" | sed 's/^# \{0,1\}//'
     exit 1
     ;;
 esac

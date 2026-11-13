@@ -1,0 +1,3 @@
+10 simultaneous transfers of the full balance, 20 rounds each
+fn::transfer  ->  0/20 rounds ended in an overdraft
+fn::transfer_unsafe  ->  16/20 rounds ended in an overdraft
