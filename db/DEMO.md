@@ -182,7 +182,7 @@ sees it but not Ana's card number, even after verifying his PIN.
 ## E. Python with the official SDK (terminal)
 
 ```sh
-uv run --with-requirements db/demo/requirements.txt python db/demo/demo_client.py --db live
+./db/demo/demo.sh sdk
 ```
 
 Six sections, in order: **create** a customer with an account and an `owns`
@@ -194,7 +194,7 @@ once, while her attempt to delete her ledger entries removes nothing; staff
 a **live query** receives three `mule_ring` alerts while a ring forms, and the
 accounts end up frozen.
 
-It adds rows to `live`; run `./db/demo/demo.sh stage` afterwards to reset it.
+It runs in its own database, `sdk`, recreated each time, so it works before or after part B (after the attack Ana is frozen in `live`, and her payment would be refused with 423).
 
 ---
 

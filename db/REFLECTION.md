@@ -22,7 +22,7 @@ a PIN check, and the database applies them on every query.
 
 **Transactions that hold under load, once understood.** With the materialised
 balance as the conflict point, 0 of 20 concurrency rounds ended in overdraft,
-against 13 of 20 for a pure ledger. Payment orders double as idempotency keys
+against 11 to 16 of 20 for a pure ledger (it varies by run). Payment orders double as idempotency keys
 through the same mechanism.
 
 **Fast enough at our scale.** At 3,000 customers (200,846 entries), normal

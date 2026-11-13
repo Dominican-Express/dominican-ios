@@ -113,7 +113,7 @@ because concurrent transfers insert different records and never conflict. The
 them. With 10 concurrent full-balance transfers: `fn::transfer` 0/20 rounds
 with overdraft, `fn::transfer_unsafe` 13/20 (README.es.md). The schema comment
 records another run: 0/30 against 7/30, and on 2026-11-11 two runs gave 11/20
-and 12/20. The unsafe count varies from run to run; the safe one has always
+and 12/20, and on 2026-11-13 six runs gave 16, 12, 11, 15, 12 and 12 of 20. The unsafe count varies from run to run; the safe one has always
 been 0.
 
 The test itself once lied. It counted any final balance other than 0 as an

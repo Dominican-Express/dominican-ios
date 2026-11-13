@@ -11,3 +11,6 @@ __pycache__/
 
 # Claude Code
 .claude/
+
+# presentation previews
+presentation/preview/

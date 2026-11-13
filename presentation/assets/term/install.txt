@@ -1,0 +1,7 @@
+$ surreal version
+3.2.4+20260803.93ab219 for macos on aarch64
+$ ./db/demo/demo.sh up
+running on http://127.0.0.1:8099
+bank, volume, live: loaded in about a minute
+$ ./db/demo/test_all.sh --quick
+ALL PASSED
