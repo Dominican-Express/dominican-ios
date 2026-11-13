@@ -281,14 +281,17 @@ XABIER (video, about 5 minutes; narrate over it).
    Luis; the balance drops by exactly that amount.
 2. Surrealist, live alerts: a mule ring forms, six alerts arrive on their own, the ring is
    frozen in proportion, Marta tries to erase the trail and cannot.
-3. The cluster: HAProxy's page in view, SurrealDB node A killed during payments (every
+3. The cluster: HAProxy's health checks and the TiKV stores in view, SurrealDB node A killed during payments (every
    payment still OK), then a TiKV leader killed (a few seconds of errors, nothing lost).
 4. Python with the official SDK: create, read, update, delete; a retried payment charged
    once.""")
     video = HERE / "assets" / "video" / "demo.mp4"
     if video.exists():
         poster = HERE / "assets" / "video" / "poster.png"
-        s.shapes.add_movie(str(video), MARGIN, TOP, W - 2 * MARGIN, BOTTOM - TOP,
+        # 16:9 exacto dentro de la zona de imagen, centrado: si no, se estira.
+        vh = BOTTOM - TOP
+        vw = int(vh * 16 / 9)
+        s.shapes.add_movie(str(video), int((W - vw) / 2), TOP, vw, vh,
                            poster_frame_image=str(poster) if poster.exists() else None,
                            mime_type="video/mp4")
     else:

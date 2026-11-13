@@ -14,3 +14,6 @@ __pycache__/
 
 # presentation previews
 presentation/preview/
+
+# PowerPoint lock files
+~$*
