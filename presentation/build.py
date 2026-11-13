@@ -31,6 +31,19 @@ def qr_png():
     return path
 
 
+def app_icon():
+    """Icono de la app con las esquinas redondeadas de iOS (radio 22,4 %)."""
+    from PIL import Image, ImageDraw
+    src = HERE.parent / "Project" / "Resources" / "Assets.xcassets" / "AppIcon.appiconset" / "AppIcon.png"
+    im = Image.open(src).convert("RGBA")
+    mask = Image.new("L", im.size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, *im.size), radius=int(im.size[0] * 0.224), fill=255)
+    im.putalpha(mask)
+    path = HERE / "assets" / "gen" / "app-icon.png"
+    im.save(path)
+    return path
+
+
 def commands(slide, lines, y=TOP + I(0.2)):
     """Chuleta de la demo: una línea por paso, número atenuado y orden en mono."""
     for i, (cmd, what) in enumerate(lines):
@@ -49,31 +62,13 @@ def build():
     s = frame(prs, 1, None, notes="""
 JORGE. Good morning. We are Jorge, Xabier and Javier, and this is Dominican Express:
 a digital bank. The deliverable of this course is the database, and in our project the
-database is not just storage: the whole backend lives inside it. On the right you can
-see what that looks like: a money-laundering ring, three accounts sending the same money
-around, found and frozen by the database itself.""")
-    text(s, MARGIN, I(1.6), I(6.8), I(0.9), "Dominican Express", size=46, bold=True)
-    text(s, MARGIN, I(2.75), I(6.4), I(0.6), "A bank built inside SurrealDB", size=26, color=MUTED)
-    text(s, MARGIN, I(4.6), I(6.0), I(1.2), "Jorge Pérez\nXabier Ariznabarreta\nJavier Pérez",
-         size=20)
-    text(s, MARGIN, I(6.0), I(6.0), I(0.4), "Advanced Databases, UFV", size=18, color=MUTED)
-    # el anillo del ataque, con los importes reales (bank: 900, 880, 860)
-    cx, cy = I(9.9), I(3.6)
-    pos = {"ana": (cx, cy - I(1.75)), "luis": (cx + I(1.9), cy + I(1.25)),
-           "marta": (cx - I(1.9), cy + I(1.25))}
-    bw, bh = I(1.6), I(0.7)
-    for name, (x, y) in pos.items():
-        box(s, x - bw // 2, y - bh // 2, bw, bh, name, accent=True, font=MONO)
-    for a, b, amt, (lx, ly) in [("ana", "luis", "900", (I(1.15), I(-0.35))),
-                                ("luis", "marta", "880", (I(-0.35), I(0.45))),
-                                ("marta", "ana", "860", (I(-1.75), I(-0.35)))]:
-        (x1, y1), (x2, y2) = pos[a], pos[b]
-        sx, sy, ex, ey = x1 + (x2 - x1) * 0.28, y1 + (y2 - y1) * 0.28, x1 + (x2 - x1) * 0.72, y1 + (y2 - y1) * 0.72
-        arrow(s, int(sx), int(sy), int(ex), int(ey), color=PINK)
-        text(s, int((x1 + x2) / 2 + lx), int((y1 + y2) / 2 + ly), I(1.0), I(0.4), amt,
-             size=18, color=MUTED, font=MONO)
-    text(s, I(7.7), I(6.0), I(4.4), I(0.4), "mule ring, frozen by the database", size=18,
-         color=MUTED, align=PP_ALIGN.CENTER)
+database is not just storage: the whole backend, from payments to fraud detection,
+lives inside it.""")
+    picture(s, app_icon(), x=int(I(1.1)), y=int(I(1.75)), max_w=I(4.0), max_h=I(4.0))
+    text(s, I(5.9), I(1.95), I(6.8), I(1.6), "A bank built\ninside SurrealDB", size=44, bold=True)
+    text(s, I(5.9), I(3.95), I(6.0), I(1.2), "Jorge Pérez\nXabier Ariznabarreta\nJavier Pérez",
+         size=22)
+    text(s, I(5.9), I(5.35), I(6.0), I(0.4), "Advanced Databases, UFV", size=18, color=MUTED)
 
     # 2 ---------------------------------------------------------------- Jorge
     s = frame(prs, 2, "The product", "iOS app in SwiftUI: mock data today", notes="""
