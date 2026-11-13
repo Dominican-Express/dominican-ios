@@ -28,6 +28,7 @@ explained in [FUNDAMENTALS.md](FUNDAMENTALS.md); the critical assessment is in
 | 17 | Official SDK for the demo client, standard library for tests |
 | 18 | Surrealist instead of a custom dashboard |
 | 19 | The cluster runs on TiKV through TiUP, natively, and is not the demo node |
+| 20 | HAProxy in front of the SurrealDB nodes, health-checking the node and not the storage |
 
 ## 1. SurrealDB instead of the alternatives
 
@@ -484,3 +485,32 @@ error for 9 to 12 s, none lost or half applied ([CLUSTER.md](CLUSTER.md)).
 survives a dead node but has no time travel or cross-node live queries, and a
 single node that has both. On a real cluster the fraud dashboard would have to
 listen on every node.
+
+## 20. HAProxy in front of the SurrealDB nodes, health-checking the node and not the storage
+
+**Context.** The SurrealDB nodes keep no state, so any of them can serve any
+request. Without a balancer, the app would have to know every node and decide
+which one is alive.
+
+**Decision.** HAProxy (`cluster/haproxy.cfg`) on one address, round robin over
+the nodes, active health check every second on `/status`, out after 2
+failures; retry on the other node only when the connection fails, so a request
+is never sent twice; WebSockets pinned to their node.
+
+**Alternatives considered.** nginx, free version (rejected: it only notices a
+dead node when a real request fails); Caddy (works, less control over
+retries); the app talking to the nodes directly (rejected: every client would
+need the node list and its own failover).
+
+**Evidence** ([CLUSTER.md](CLUSTER.md)). Killing SurrealDB node A during 40
+writes through HAProxy: 40 of 40 OK in three runs, slowest 52 ms. Our first
+health check used `/health`, which also checks the storage: when the TiKV
+leader died both nodes failed it, HAProxy removed both, and 22 of 40 writes
+failed against 5 to 7 with no balancer. With `/status`, 6 and 7 failed, all
+from the storage election. A live query opened through HAProxy received 5 of
+10 changes when the writes were spread over both nodes, in three runs.
+
+**Consequences and costs.** One more process, and in this setup a single point
+of failure (production runs two balancers on a floating address, with TLS). A
+health check must test the node, not what all nodes share. Live alerts need
+one connection per node, or a re-read on reconnect.

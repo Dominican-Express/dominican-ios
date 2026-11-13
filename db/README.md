@@ -64,6 +64,7 @@ db/
 | Prefilter | IBM's 4,487,133 transfers reduced to 381 without losing a ring |
 | Tests | 6 suites; every test also run against code broken on purpose: 74 of 74 breaks caught |
 | Cluster | 3 TiKV: a crashed follower goes unnoticed; a crashed leader, 9 to 12 s of errors and no write lost |
+| Load balancer | HAProxy over 2 SurrealDB nodes: one node killed during 40 writes, 40 of 40 OK in three runs |
 
 Where each number comes from: [DECISIONS.md](DECISIONS.md) and [DATASET.md](DATASET.md).
 

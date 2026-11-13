@@ -243,21 +243,24 @@ story and how to reproduce every number: [DATASET.md](DATASET.md).
 
 ## H. A cluster that survives a dead node (terminal)
 
-Needs TiUP once ([CLUSTER.md](CLUSTER.md), step 1). Start it before the
+Needs TiUP and HAProxy once ([CLUSTER.md](CLUSTER.md), step 1). Start it before the
 presentation: the first start downloads ~110 MB, later ones take 15 s.
 
 ```sh
-./db/demo/demo.sh cluster-up       # 1 PD + 3 TiKV + SurrealDB nodes A (:8101) and B (:8102)
-./db/demo/demo.sh cluster-status   # which TiKV leads which regions
-./db/demo/demo.sh cluster-write 40 # terminal 1: writes through A, then counts through B
-./db/demo/demo.sh cluster-kill     # terminal 2, during the writes: SIGKILL the busiest TiKV
-./db/demo/demo.sh cluster-revive   # it comes back and catches up
+./db/demo/demo.sh cluster-up          # HAProxy :8100 + SurrealDB nodes A, B + 1 PD + 3 TiKV
+./db/demo/demo.sh cluster-status      # TiKV leaders, nodes, what HAProxy sees
+./db/demo/demo.sh cluster-write 40    # terminal 1: writes through HAProxy, with the node that served each
+./db/demo/demo.sh cluster-kill-node   # terminal 2, during the writes: SIGKILL SurrealDB node A
+./db/demo/demo.sh cluster-revive-node # it goes back into the rotation
+./db/demo/demo.sh cluster-kill        # terminal 2, during new writes: SIGKILL the busiest TiKV
+./db/demo/demo.sh cluster-revive      # it comes back and catches up
 ./db/demo/demo.sh cluster-down     # stop it all (about 45 s) and delete the cluster data
 ```
 
-If the dead TiKV led the region being written, a few writes fail **with an
+Killing node A: every write still answers OK; they all move to node B
+(http://127.0.0.1:8404 shows A turn red). If the dead TiKV led the region being written, a few writes fail **with an
 error** for 9 to 12 s while Raft elects a new leader, then everything continues
-on the other two; node B counts exactly the writes that answered OK. If it led
+on the other two; the final count matches exactly the writes that answered OK. If it led
 other regions, nothing is visible. Full results and what does not work on
 TiKV: [CLUSTER.md](CLUSTER.md).
 
