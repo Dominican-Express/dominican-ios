@@ -179,10 +179,8 @@ Output is in Spanish; every line must be `[ok   ]` and the last `TODO EN ORDEN`.
 Examples: Ana does not see other accounts; Luis, co-holder of Ana's account,
 sees it but not Ana's card number, even after verifying his PIN.
 
-**Careful:** `access` reloads the seed into database `bank`, so afterwards `bank`
-no longer has the attack, the alerts or the frozen accounts of part A (the
-mule-ring query there returns `[]`). To get the story back, run
-`./db/demo/demo.sh studio-load` (about one minute; it also reloads `volume`).
+It runs on its own freshly created database, `access`, so `bank` and the story
+of part A are not touched.
 
 ---
 

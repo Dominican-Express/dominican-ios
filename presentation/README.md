@@ -27,8 +27,8 @@ uv run --with python-pptx --with pillow python presentation/preview.py   # PNG p
 ```
 
 `build.py` rewrites `dominican-express.pptx` and the charts in `assets/gen/`;
-`preview.py` writes `presentation/preview/slide-NN.png` (ignored by git). It
-currently warns once, on slide 18: the repository URL is wider than its box.
+`preview.py` writes `presentation/preview/slide-NN.png` (ignored by git) and
+prints `no overflow warnings` when every text fits its box.
 
 | File | Does |
 |---|---|
