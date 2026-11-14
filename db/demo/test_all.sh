@@ -2,8 +2,8 @@
 # Todas las pruebas: las 6 suites y sus pruebas en rojo, sobre un servidor
 # temporal propio (SurrealKV con versionado, puerto 8098), que se apaga al final.
 #
-# uso: ./db/demo/test_all.sh            # ~10 min, sobre todo las pruebas en rojo
-#      ./db/demo/test_all.sh --quick    # solo las suites (~1 min)
+# uso: ./db/demo/test_all.sh            # ~4 min, sobre todo las pruebas en rojo
+#      ./db/demo/test_all.sh --quick    # solo las suites (~15 s)
 #
 # SurrealKV y no memoria: es el motor de la demo, y el fallo surrealdb#7601
 # (09_time_travel) solo aparece en él.

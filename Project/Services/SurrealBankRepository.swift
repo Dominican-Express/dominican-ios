@@ -50,7 +50,7 @@ actor SurrealBankRepository: BankRepository {
 
     func snapshot() async throws -> BankSnapshot {
         let results = try await query("""
-            SELECT id, iban, balance, currency, <-owns<-customer.name AS holders FROM account WHERE kind = 'customer';
+            SELECT id, iban, balance, currency, (SELECT VALUE in.name FROM <-owns ORDER BY role DESC) AS holders FROM account WHERE kind = 'customer';
             SELECT id, account, amount, at, txn.kind AS kind, txn.concept AS concept FROM entry ORDER BY at DESC LIMIT 50;
             SELECT id, account, pan_last4, monthly_limit, math::sum((SELECT VALUE amount FROM card_payment WHERE card = $parent.id AND status = 'approved')) AS spent FROM card;
             SELECT id, name, phone FROM customer WHERE id != $auth.customer;

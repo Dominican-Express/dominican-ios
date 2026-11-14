@@ -138,7 +138,12 @@ case "$1" in
     DEMO_LANG=en ./concurrency_test.sh transfer_unsafe 10 "$ROUNDS" | grep -E 'rounds|OJO'
     ;;
   access)
-    ./surql.sh 01_seed.surql > /dev/null
+    # Base propia y recién creada, como `race`: recargar la semilla en `bank`
+    # borraba el ataque y las alertas de la parte A de DEMO.md.
+    export SURREAL_DB=access
+    curl -s -X POST "$URL/sql" -u root:root -H "surreal-ns: dx" \
+         --data-binary "REMOVE DATABASE IF EXISTS access;" > /dev/null
+    ./apply.sh > /dev/null && ./surql.sh 01_seed.surql > /dev/null
     python3 access_test.py
     ;;
   studio)

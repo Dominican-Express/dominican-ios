@@ -392,7 +392,11 @@ SURREAL_DATASTORE_VERSIONED=true SURREAL_DATASTORE_RETENTION=30d
 
 ```surql
 SELECT id, balance FROM account:marta VERSION d'2026-10-28T10:00:00Z';
+-- on your machine use an instant after the data was loaded, for example:
+SELECT id, balance FROM account:marta VERSION time::now() - 10m;
 ```
+
+An instant before the database existed answers `The table 'account' does not exist`.
 
 Measured cost: the same bank takes 26 MB without versioning and 42 MB with it
 (+62 %), because each payment rewrites a balance and each version is kept.
@@ -443,8 +447,8 @@ Namespaces and databases are not created implicitly in 3.x: they need
 `DEFINE NAMESPACE` and `DEFINE DATABASE`, or the server answers "The database
 'x' does not exist".
 
-**Surrealist.** Connect over HTTP to `127.0.0.1:8099`; the Live view needs a
-WebSocket connection. In the Query view, the **Graph** result mode draws each
+**Surrealist.** Connect over WebSocket to `ws://127.0.0.1:8099` (see
+[INSTALL.md](INSTALL.md), section 6); over HTTP the Live query mode is missing. In the Query view, the **Graph** result mode draws each
 returned record as a node and the edges between them, so
 `SELECT * FROM account;` in database `bank` shows the ring ana, luis, marta.
 
@@ -459,6 +463,11 @@ with Surreal(a.url) as ana:
 ```
 
 ## 10. SurrealQL cheat sheet (from our project)
+
+A reference, not a script: running it in order on a loaded database fails at
+step 2 (`customer:ana` already exists), and step 6 changes a stored balance
+without a ledger entry, so step 17 then reports `account:ana`. Try the read-only
+statements on `bank`; try the writes on a scratch database.
 
 ```surql
 -- 1. Define a namespace and database (not automatic in 3.x)
@@ -506,8 +515,8 @@ DELETE owns WHERE in = customer:py123;
 -- 13. Live query (WebSocket)
 LIVE SELECT kind, account, device, score FROM fraud_alert;
 
--- 14. Time travel (SurrealKV with versioning)
-SELECT id, balance FROM account:marta VERSION d'2026-10-28T10:00:00Z';
+-- 14. Time travel (SurrealKV with versioning); the instant must be after the data was loaded
+SELECT id, balance FROM account:marta VERSION time::now() - 10m;
 
 -- 15. Call a function and an endpoint from SurrealQL
 RETURN fn::detect_rings_between(d'2022-08-31T00:00:00Z', d'2022-09-20T00:00:00Z', 12);
