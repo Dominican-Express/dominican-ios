@@ -42,7 +42,7 @@ and the schema is optional per table.
 
 SurrealDB is a good candidate when one application needs **documents and a
 graph at the same time, under the same transaction and the same permissions**.
-In a bank that is exactly the case:
+A bank needs all three:
 
 - money must never go out of balance (multi-record ACID transactions);
 - fraud is a graph problem (rings of accounts, phones shared by strangers);
@@ -143,8 +143,8 @@ Arrows follow edges. `->` goes out, `<-` comes in:
 
 Traversals return arrays, so they combine with array functions:
 `fn::detect_shared_devices` intersects `$c->owns->account<-owns<-customer` with
-the users of a device to count households instead of people. The naive ring detector we kept for comparison used recursive
-paths, `id.{2..5+path}(->transfer->account)`, which is the syntax for "follow
+the users of a device to count households instead of people. The naive ring detector we kept for
+comparison used recursive paths, `id.{2..5+path}(->transfer->account)`, which is the syntax for "follow
 2 to 5 hops and return the paths" (see [DECISIONS.md](DECISIONS.md)).
 
 ## 3. Consistency and transactions
@@ -161,15 +161,14 @@ COMMIT;
 ```
 
 **Isolation.** SurrealDB 3.2 uses **snapshot isolation** with write-write
-conflict detection on the same record at commit time. This has a consequence
-we only found by testing: an append-only ledger alone does **not** prevent an
-overdraft. Two concurrent transfers from the same account insert *different*
-entries, so they do not collide; both read balance 100, both pass the check,
-both commit.
+conflict detection on the same record at commit time. We only found out by
+testing that an append-only ledger alone does not prevent an overdraft. Two
+concurrent transfers from the same account insert different entries, so they
+do not collide: each reads a balance of 100, passes the check and commits.
 
 What serialises them is `UPDATE account SET balance`, because both
-transactions write the same record. The materialised balance is therefore not
-a cache: it is the concurrency control mechanism. Measured with
+transactions write the same record. So the materialised balance does more
+than save a sum: it is what controls concurrency. Measured with
 `demo/concurrency_test.sh`, 10 simultaneous transfers of the full balance:
 
 | Implementation | Rounds with overdraft |
@@ -245,7 +244,7 @@ In CAP terms this is a **CP** system: under a network partition it chooses
 consistency and refuses writes on the minority side, instead of accepting
 writes that might conflict.
 
-Two features do not cross this line in the version we used:
+In the version we used, two features do not work across nodes:
 
 - **Live queries across nodes.** `LIVE SELECT` notifies the connection that
   opened it. Delivering changes made on *other* nodes is listed in the
@@ -448,8 +447,8 @@ Namespaces and databases are not created implicitly in 3.x: they need
 'x' does not exist".
 
 **Surrealist.** Connect over WebSocket to `ws://127.0.0.1:8099` (see
-[INSTALL.md](INSTALL.md), section 6); over HTTP the Live query mode is missing. In the Query view, the **Graph** result mode draws each
-returned record as a node and the edges between them, so
+[INSTALL.md](INSTALL.md), section 6); over HTTP the Live query mode is missing. In the
+Query view, the **Graph** result mode draws each returned record as a node and the edges between them, so
 `SELECT * FROM account;` in database `bank` shows the ring ana, luis, marta.
 
 **Python SDK.** The demo client signs in as root and as Ana, uses record IDs as
@@ -464,9 +463,9 @@ with Surreal(a.url) as ana:
 
 ## 10. SurrealQL cheat sheet (from our project)
 
-A reference, not a script: running it in order on a loaded database fails at
-step 2 (`customer:ana` already exists), and step 6 changes a stored balance
-without a ledger entry, so step 17 then reports `account:ana`. Try the read-only
+These are reference examples, not a script to run in order. On a loaded
+database, step 2 fails (`customer:ana` already exists), and step 6 changes a
+stored balance without a ledger entry, so step 17 then reports `account:ana`. Try the read-only
 statements on `bank`; try the writes on a scratch database.
 
 ```surql

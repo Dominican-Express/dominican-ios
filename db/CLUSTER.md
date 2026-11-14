@@ -2,10 +2,10 @@
 
 The rest of the project runs on one SurrealDB node. This guide runs the same
 schema on a small distributed cluster on one laptop and shows what a cluster
-gives a bank: **replication** (every piece of data on 3 machines),
-**fault tolerance** (kill one, keep working), **stateless compute** (any
-SurrealDB node serves any request) and **one entry point**: a load balancer
-in front of the SurrealDB nodes, which is what the app talks to. The concepts are in
+gives a bank: replication (every piece of data on 3 machines), fault
+tolerance (one machine can die and the rest keep working), stateless compute
+(any SurrealDB node serves any request) and a single entry point, a load
+balancer in front of the SurrealDB nodes that the app talks to. The concepts are in
 [FUNDAMENTALS.md, section 5](FUNDAMENTALS.md#5-storage-engines-and-architecture).
 
 Every number and every output below was measured on a MacBook Air M3 (16 GB)
@@ -217,7 +217,7 @@ curl -s -u root:root -H 'surreal-ns: dx' -H 'surreal-db: cluster' -H 'Accept: ap
 
 ## Step 6: kill a SurrealDB node
 
-The other half of the cluster: the compute nodes. Same two terminals, and this
+Now the other half of the cluster, the compute nodes. Same two terminals, and this
 time kill (`SIGKILL`) SurrealDB node A while the writes go through HAProxy:
 
 ```sh
@@ -261,8 +261,7 @@ cluster started) and deletes the cluster data. The binaries stay in `~/.tiup`.
 **Why one.** The SurrealDB nodes keep no state, so any of them can serve any
 request. Without a balancer the app would have to know every node and decide
 itself which one is alive. With one, the app has a single address, the load is
-spread, and a dead node is taken out before the app notices (step 6). It is
-the usual design in front of stateless services.
+spread, and a dead node is taken out before the app notices (step 6).
 
 **Why HAProxy.** It checks every node actively, once a second, so a dead node
 leaves the rotation even when no request has failed yet; the free version of
@@ -287,8 +286,7 @@ has no server available") and answered errors itself until they passed two
 checks again: **22 of 40 writes failed**, against 5 to 7 with no balancer at
 all. The balancer was making a storage failure worse. With `/status` (is this
 node alive?) the same test gave 6 and 7 failures, all of them from the storage
-election, none from HAProxy. If what fails is shared by every node, taking
-nodes out fixes nothing.
+election, none from HAProxy.
 
 **Live queries through a balancer.** A WebSocket goes through HAProxy fine: a
 live query opened through it got 3 of 3 changes made on the same connection,
@@ -316,9 +314,9 @@ them.
 **Live queries do not cross nodes.** We opened a `LIVE SELECT` on node B and
 wrote 5 records through B and 5 through A. Node B was notified of **5 of 5**
 written through B and **0 of 5** written through A. Distributed live queries
-are listed by SurrealDB as an Enterprise feature. For our fraud alerts this
-means: on a cluster, a dashboard must listen on every node, or alerts must be
-written through the node it listens on.
+are listed by SurrealDB as an Enterprise feature. What that means for the
+fraud alerts is in [The load balancer](#the-load-balancer); alerts can also be
+written through the node the dashboard listens on.
 
 That is why the live demo and the time machine stay on a single SurrealKV
 node, and the cluster is the demonstration of replication and fault tolerance.

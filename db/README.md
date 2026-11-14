@@ -68,7 +68,7 @@ db/
 
 Where each number comes from: [DECISIONS.md](DECISIONS.md) and [DATASET.md](DATASET.md).
 
-## Limits we declare
+## Known limitations
 
 The cluster runs on one laptop: it shows replication and failover, not
 performance across machines ([CLUSTER.md](CLUSTER.md)). On TiKV there is no

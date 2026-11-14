@@ -40,7 +40,7 @@ SELECT <-owns<-customer.name AS holders, <-owns.role AS roles FROM account:ana;
 ```
 
 Expected: Ana and Luis both hold `account:ana` (`titular`, `cotitular`). The
-co-holder is an attribute of the **edge**, not a join table.
+role is stored on the **edge** itself; there is no join table.
 
 ```sql
 -- the mule ring the sweep found; switch the result view to Graph
@@ -92,8 +92,8 @@ Ana, Luis and Marta are **frozen** (mule ring: money cannot leave; incoming
 money still arrives). José is only **in review** (structuring can be innocent):
 `frozen: false, in_review: true`. The three frozen accounts also show
 `in_review: true`, because the shared-device alert sends every account of the
-phone's users to review. Sara does not appear. No application code did this: an event on `fraud_alert`
-did, inside the database (`schema/10_controls.surql`).
+phone's users to review. Sara does not appear. This was done inside the database by an event on
+`fraud_alert` (`schema/10_controls.surql`), with no application code involved.
 
 **5. The mules try to cover their tracks** (terminal):
 

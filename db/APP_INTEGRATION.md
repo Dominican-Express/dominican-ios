@@ -2,7 +2,7 @@
 
 There is no backend between the app and SurrealDB: the iOS app (or the web)
 calls the database directly, with the rights of the signed-in customer and
-nothing more. Why: [DECISIONS.md, section 2](DECISIONS.md#2-no-java-backend-the-api-lives-inside-the-database).
+nothing more. The reasons are in [DECISIONS.md, section 2](DECISIONS.md#2-no-java-backend-the-api-lives-inside-the-database).
 The endpoints are in `schema/07_api.surql`, the sign-in in
 `schema/06_access.surql`, and a working client in Python in
 `demo/demo_client.py` (official SDK) and `demo/session.py` (plain HTTP).
@@ -129,7 +129,7 @@ data, the default) and `SurrealBankRepository`, which does the calls above with
 `URLSession`. Views and view models do not change. Money stays `Decimal` in the
 app and travels as text.
 
-`SurrealBankRepository` in one request per screen load: it signs in once, then
+`SurrealBankRepository` needs one request per screen load: it signs in once, then
 sends six SurrealQL statements in a single `POST /sql` (accounts with their
 holders, the last 50 ledger entries, cards with what was spent, the customers it
 may see, co-holders, notifications). A payment to a contact is a Bizum to that

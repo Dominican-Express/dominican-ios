@@ -3,7 +3,7 @@
 We test our mule-ring detector against data we did not generate ourselves and
 whose answer is known. Our own scenario (`demo/01_seed.surql`, `gen_volume.py`)
 can only confirm what we designed; an independent dataset can show where the
-design is wrong. It did (see [Findings](#findings)).
+design is wrong, and this one did (see [Findings](#findings)).
 
 ## Source and licence
 
@@ -125,7 +125,7 @@ analysis only on what is suspicious.
 
 `demo/aml_prefilter.py` removes, in one linear pass repeated until nothing
 changes, every transfer that **cannot** be part of a ring under the most
-permissive rule we test (amount 0.80–1.20, 72 h):
+permissive rule we test (amount 0.80 to 1.20, 72 h):
 
 1. a ring hop always has a previous hop **or** a next one under the rule (the
    first hop has no previous, the closing one has no next: requiring both
@@ -133,27 +133,30 @@ permissive rule we test (amount 0.80–1.20, 72 h):
 2. the accounts of a ring form a cycle, so they lie in the same strongly
    connected component, of at least 3 accounts.
 
-HI-Small: **4,487,133 → 381 transfers** (256 accounts); LI-Small: 6,119,572 → 158.
+HI-Small goes from 4,487,133 to **381 transfers** (256 accounts); LI-Small from
+6,119,572 to 158.
 Of the 381, 323 are labelled laundering (85 %, against 0.1 % in the set).
 
 **Lossless, checked**: `demo/aml_rings.py` re-implements `fn::ring_from` in
 Python. On the first 500,000 and 1,500,000 rows it finds exactly the same rings
-from all transfers as from the candidates only. Red test: changing *or* to
-*and* in step 1 loses all of them, and the comparison catches it.
+from all transfers as from the candidates only. As a check on the check,
+changing *or* to *and* in step 1 loses all of them, and the comparison catches
+it.
 
 ## Findings
 
 **1. Our rule was nearly blind on independent data.** We assumed a mule keeps a
-commission, so each hop moves *less* money (85–100 %). In IBM's cycles the
+commission, so each hop moves *less* money (85 to 100 %). In IBM's cycles the
 amount after currency conversion moves ±9 % and **grows half the time**. The
 strict rule found **6 of 54** cycles.
 
-**2. Calibration, method fixed in advance** (`demo/aml_eval.py`): grid
-lo ∈ {0.80, 0.85, 0.90} × hi ∈ {1.00 … 1.20} × gap ∈ {24, 48, 72} h, up to 12
-hops. Pick the rule that recovers most labelled cycles with precision ≥ 95 %;
+**2. Calibration, method fixed in advance** (`demo/aml_eval.py`): a grid
+of 45 rules, lo in {0.80, 0.85, 0.90}, hi from 1.00 to 1.20 in five steps and
+gap in {24, 48, 72} h, up to 12 hops. Pick the rule that recovers the most
+labelled cycles with a precision of at least 95 %;
 ties go to the strictest. Then apply it untouched to a second set.
 
-| | strict (0.85–1.00, 48 h) | wide (0.90–1.20, 72 h) |
+| | strict (0.85 to 1.00, 48 h) | wide (0.90 to 1.20, 72 h) |
 |---|---|---|
 | HI-Small, calibration | 6/54 cycles, precision 100 % | **33/54, 98.6 %** (3 innocent of 211) |
 | LI-Small, held out | 1/12, 100 % | **8/12, 86.9 %** (8 innocent of 61) |
@@ -162,19 +165,22 @@ Precision is the share of flagged accounts that take part in some labelled
 laundering transaction. A cycle counts as found when the detector returns a
 ring made only of transfers of that attempt.
 
-Recall holds on unseen data (61 % → 67 %). Precision drops because LI has less
+Recall holds on unseen data (from 61 % to 67 %). Precision drops because LI has less
 laundering: the rarer the fraud, the more the false alarms weigh. We do not
 recalibrate on LI; that would be grading our own exam.
 
 **3. Two tiers instead of one rule.** Freezing on the wide rule would freeze 1
-innocent in 8. So (`05_detectors`, `10_controls`):
+innocent in 8. So the detector has two tiers
+(`05_detectors`, `10_controls`):
 
-- strict ring → `mule_ring` → **freeze** (100 % precision on both sets);
-- ring that only the wide rule sees → `possible_ring` → **review** by an analyst.
+- a strict ring raises `mule_ring` and its accounts are frozen (100 % precision
+  on both sets);
+- a ring that only the wide rule sees raises `possible_ring` and goes to an
+  analyst for review.
 
 **4. What no forwarding rule can catch.** Of the 54 cycles, 19 are out of reach:
-14 have only 2 accounts (A→B→A, excluded on purpose: friends paying each other
-back), 2 break the permissive rule (a 79 h hop, an amount ×2.88), and 3 are
+14 have only 2 accounts (A to B and back to A, excluded on purpose: friends paying each other
+back), 2 break the permissive rule (a 79 h hop, an amount multiplied by 2.88), and 3 are
 **not in time order**: an account sends the money on *before* receiving it. IBM's
 generator does not enforce causality, so "the same money goes round" does not
 describe them.

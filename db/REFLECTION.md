@@ -11,8 +11,8 @@ are in [DECISIONS.md](DECISIONS.md), and the concepts in
 **One model for accounting, fraud and authorization.** The ledger, the
 `transfer` graph and the `owns` permissions live in one database and commit in
 one transaction. The same traversal, `$auth.customer->owns->account`, filters
-what a customer sees and feeds the fraud detectors. No ETL, no second system,
-no bridge table.
+what a customer sees and feeds the fraud detectors, without an ETL step, a
+second system or a bridge table.
 
 **Logic close to the data, and hard to bypass.** Functions, events, params and
 HTTP endpoints let us remove the planned Java backend entirely. The audit
@@ -53,9 +53,9 @@ past inside the language.
 | Missing locking | `SELECT ... FOR UPDATE` only from 3.3 (beta); in 3.2 a write must be used as the conflict point | README.es.md |
 | Input parsing | `api::req::body("json")` turns `"Cena: viernes"` into the record `Cena:viernes` | README.es.md traps table |
 
-The common thread: almost none of these show up when reading the code. Every
-one was found by running it, measuring it or breaking it on purpose. Several
-fail **silently**, which is the dangerous kind in a bank.
+Almost none of these show up when reading the code; we found each one by
+running, measuring or deliberately breaking something. Several fail silently,
+which is the most dangerous kind of failure in a bank.
 
 What we could not prove: scalability beyond 3,000 customers and about 100,000
 operations, behaviour on a disk server under heavy load, and a cluster on
@@ -76,7 +76,7 @@ with the same rules.
 | Maturity, tooling, people who know it | Decades | Young; we hit several engine bugs |
 | Performance for our workload | not measured | measured only on SurrealDB |
 
-An honest summary: PostgreSQL is far more mature, with decades of tooling and
+PostgreSQL is far more mature, with decades of tooling and
 many more people who know it, and the course's NoSQL requirement ruled it out
 anyway. For this problem we would lose the graph as a first-class model shared
 by permissions and fraud detection, the API and real-time updates inside the
@@ -86,12 +86,12 @@ pending.
 
 ## Comparison with other NoSQL databases
 
-- **MongoDB** has the same multi-document atomicity, so ACID is not a
-  difference. The difference is the graph (`$graphLookup` is limited to
+- **MongoDB** has the same multi-document atomicity, so the differences
+  lie elsewhere: the graph (`$graphLookup` is limited to
   100 MB) and per-field permissions (only through views).
 - **Cassandra** is built for write throughput across partitions; transactions
-  stay within one partition and there is no graph. Wrong fit for moving money
-  between two arbitrary accounts.
+  stay within one partition and there is no graph. That makes it a poor fit for
+  moving money between two arbitrary accounts.
 - **Neo4j** is the strongest graph engine of the group, but per-property
   permissions are Enterprise only, which is exactly what the PAN and CVV need.
 - **ArangoDB** is the closest alternative (documents + graph); its permissions
