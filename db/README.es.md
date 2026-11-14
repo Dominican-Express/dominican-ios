@@ -427,7 +427,7 @@ Neo4j y ArangoDB no lo ofrecen: copia y restauración, o modelarlo a mano.
   del motor en memoria. `CREATE ... VERSION` se acepta y se ignora en 3.x.
 
 Pruebas: `time_travel_test.py`, **20 comprobaciones** (requiere servidor con
-versionado: lo arrancan así `demo.sh` y `domex`); `time_travel_redteam.py`,
+versionado: lo arranca así `demo.sh`); `time_travel_redteam.py`,
 **10/10**. Con el versionado activado siguen en orden las demás suites, incluida
 la carrera de pagos, y el oyente en vivo recibe las 6 alertas del ataque.
 
