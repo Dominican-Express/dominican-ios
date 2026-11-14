@@ -8,18 +8,37 @@ The endpoints are in `schema/07_api.surql`, the sign-in in
 `demo/demo_client.py` (official SDK) and `demo/session.py` (plain HTTP).
 
 The examples use namespace `dx`, database `live` and the local server
-(`./db/demo/demo.sh up`, port 8099).
+(`./db/demo/demo.sh up`, port 8099). Reset `live` first with
+`./db/demo/demo.sh stage`: after part B of [DEMO.md](DEMO.md) Ana's account is
+frozen and the transfer below answers `423` with `"reason": "account_frozen"`.
 
 ## Session
 
 ```http
 POST /signin
 Content-Type: application/json
+Accept: application/json
 
 {"ns": "dx", "db": "live", "ac": "banca", "email": "ana@dominican.test", "pass": "demo-ana"}
 ```
 
-It returns a token for that customer (keep it in the Keychain on iOS). The app
+```
+HTTP 200
+{"code": 200, "details": "Authentication succeeded", "token": "eyJ0eXAiOiJKV1Qi..."}
+```
+
+Send `Accept: application/json` (curl and URLSession send `*/*`, which also
+works; a request with no `Accept` header at all gets an empty body). The same
+request with curl:
+
+```sh
+curl -s -X POST http://127.0.0.1:8099/signin -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -d '{"ns": "dx", "db": "live", "ac": "banca", "email": "ana@dominican.test", "pass": "demo-ana"}'
+```
+
+The `token` field is a token for that customer, valid for 15 minutes (keep it
+in the Keychain on iOS). The app
 never holds database credentials: the token only carries that customer's
 permissions. Every following request sends `Authorization: Bearer <token>`.
 
@@ -55,6 +74,10 @@ Content-Type: application/json
 HTTP 201
 {"amount": "12.5", "balance_after": "8413.1", "order": "811DE31E-...", "reason": null, "status": "done"}
 ```
+
+`8413.1` is Ana's seed balance (8425.60) minus 12.50, so it only matches on a
+freshly staged `live`. Sending the same `id` again returns this same answer
+without paying again (see the rules below); use a new `id` for a new payment.
 
 `POST /api/dx/live/<route>` with a JSON body and the same bearer token:
 

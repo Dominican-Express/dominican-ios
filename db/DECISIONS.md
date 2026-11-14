@@ -384,8 +384,8 @@ detect 9/9, time travel 10/10, controls 23/23. The red teams found tests that
 passed with the bug in place (a user who could not read the PIN request table
 saw it empty either way) and tests that crashed instead of failing.
 
-**Consequences and costs.** Each suite runs once per break; total time not
-measured.
+**Consequences and costs.** Each suite runs once per break: the full
+`test_all.sh` took 206 s on a MacBook Air M3, against about 15 s for `--quick`.
 
 ## 15. Calibration on IBM data, two tiers
 
@@ -431,7 +431,7 @@ and its accounts must be in the same strongly connected component of at least
 381 are laundering (85 %, against 0.1 % in the set). LI-Small: 6,119,572 to
 158. Lossless checked by a Python re-implementation of `fn::ring_from` on the
 first 500,000 and 1,500,000 rows; changing *or* to *and* loses every ring and
-the check catches it. The committed 6.5 MB sample reproduces the full set
+the check catches it. The committed 4.8 MB sample reproduces the full set
 exactly (381 candidates, 7 strict rings over 20 accounts, 36 wide rings over
 211 accounts).
 

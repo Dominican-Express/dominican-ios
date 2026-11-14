@@ -89,8 +89,10 @@ FROM account WHERE frozen_at != NONE OR review_at != NONE;
 ```
 
 Ana, Luis and Marta are **frozen** (mule ring: money cannot leave; incoming
-money still arrives). José is only **in review** (structuring can be innocent).
-Sara does not appear. No application code did this: an event on `fraud_alert`
+money still arrives). José is only **in review** (structuring can be innocent):
+`frozen: false, in_review: true`. The three frozen accounts also show
+`in_review: true`, because the shared-device alert sends every account of the
+phone's users to review. Sara does not appear. No application code did this: an event on `fraud_alert`
 did, inside the database (`schema/10_controls.surql`).
 
 **5. The mules try to cover their tracks** (terminal):
@@ -157,7 +159,7 @@ fn::transfer  ->  0/20 rounds ended in an overdraft
 fn::transfer_unsafe  ->  12/20 rounds ended in an overdraft
 ```
 
-The unsafe count varies from run to run (11 and 12 out of 20 in ours); the safe
+The unsafe count varies from run to run (11 to 16 out of 20 in ours); the safe
 one is always 0. Ten transfers of the whole balance at once: only one may
 succeed. The safe version writes `account.balance`, so concurrent transactions
 conflict and all but one are rejected; the unsafe version only appends to the
@@ -176,6 +178,11 @@ Signs in as Ana and Luis (record access) and tries to read what is not theirs.
 Output is in Spanish; every line must be `[ok   ]` and the last `TODO EN ORDEN`.
 Examples: Ana does not see other accounts; Luis, co-holder of Ana's account,
 sees it but not Ana's card number, even after verifying his PIN.
+
+**Careful:** `access` reloads the seed into database `bank`, so afterwards `bank`
+no longer has the attack, the alerts or the frozen accounts of part A (the
+mule-ring query there returns `[]`). To get the story back, run
+`./db/demo/demo.sh studio-load` (about one minute; it also reloads `volume`).
 
 ---
 
@@ -221,6 +228,7 @@ everything.
 
 ```sh
 ./db/demo/demo.sh aml
+# 20874 transferencias en 1 s (29518/s); blanqueo 3208 (...)      (loader summary, in Spanish)
 # aml: IBM sample loaded and swept (expected: 20 mule_ring, 191 possible_ring)
 ```
 
@@ -233,7 +241,12 @@ SELECT kind, count() AS n FROM fraud_alert GROUP BY kind;
 -- do the flagged accounts really launder? IBM's labels, kept apart from the detector
 LET $flagged = (SELECT VALUE account FROM fraud_alert WHERE kind = 'mule_ring');
 SELECT pattern, count() AS transfers FROM aml_truth WHERE src IN $flagged GROUP BY pattern;
+-- eight rows, one per IBM typology; CYCLE (25) and GATHER-SCATTER (35) are the largest:
+-- the 20 frozen accounts all take part in labelled laundering
 ```
+
+In Surrealist run the last two statements together (the `LET` only lives for
+that run).
 
 Strict rings freeze (100 % precision on both IBM sets); rings only the wide rule
 sees go to review (one in eight would be innocent on unseen data). The full
@@ -259,8 +272,9 @@ presentation: the first start downloads ~110 MB, later ones take 15 s.
 
 Killing node A: every write still answers OK; they all move to node B
 (http://127.0.0.1:8404 shows A turn red). If the dead TiKV led the region being written, a few writes fail **with an
-error** for 9 to 12 s while Raft elects a new leader, then everything continues
-on the other two; the final count matches exactly the writes that answered OK. If it led
+error** for 9 to 13 s while Raft elects a new leader, then everything continues
+on the other two; the final count (`the cluster now holds: N beats in total`, which also counts the
+writes of earlier runs) matches exactly the writes that answered OK. If it led
 other regions, nothing is visible. Full results and what does not work on
 TiKV: [CLUSTER.md](CLUSTER.md).
 

@@ -23,13 +23,19 @@ so we do not claim it works.
 ### macOS and Linux
 
 The official installer, pinned to our version. The last argument is where the
-binary goes; use a folder in your `PATH` that you can write to without `sudo`:
+`surreal` command goes; use a folder in your `PATH` that you can write to without `sudo`:
 
 ```sh
 curl -sSf https://install.surrealdb.com | sh -s -- --version 3.2.4 ~/.local/bin
 ```
 
 Do **not** use the Homebrew tap (`surrealdb/tap/surreal`): it is stuck at 1.0.0.
+
+The current installer puts a small version manager called `surreal` (about 5 MB)
+in that folder and the 3.2.4 server itself (about 100 MB) in
+`~/.surrealdb/components/db/3.2.4/`. The `surreal` command passes every call to
+the pinned server, so all the commands in this repo work unchanged. `surreal list`
+shows what is installed.
 
 ### Windows
 
@@ -55,8 +61,13 @@ native binary; this Docker path has not been through our test suite.*
 
 ```sh
 surreal version
+# warning: `surreal version` is deprecated; use `surreal db version`.
 # 3.2.4+20260803.93ab219 for macos on aarch64   (platform part varies)
 ```
+
+The `deprecated` warning comes from the version manager and is harmless; the
+same warning about `surreal start` appears at the top of `surreal.log`. What
+matters is the `3.2.4` on the second line.
 
 ## 2. Surrealist
 
@@ -139,11 +150,14 @@ on `127.0.0.1` and nothing else. Demo app users (record access `banca`):
 
 ```sh
 ./db/demo/test_all.sh --quick   # the 6 test suites, ~15 s
-./db/demo/test_all.sh           # plus the red-team runs, ~10 min
+./db/demo/test_all.sh           # plus the red-team runs, ~4 min on a MacBook Air M3
 ```
 
-It starts its own temporary server on port 8098, so your demo data is not
-touched. Expected last line: `ALL PASSED`. A red-team run breaks the schema on
+It starts its own temporary server on port 8098 (it must be free), so your demo
+data is not touched. The per-suite lines are in Spanish: each suite prints
+`TODO EN ORDEN` ("all in order"), and each red-team run prints
+`N/N roturas detectadas por su prueba` ("N of N breaks caught by its test");
+the full run adds up to 74/74. Expected last line: `ALL PASSED`. A red-team run breaks the schema on
 purpose and checks that its test catches it (see `DECISIONS.md`).
 
 The 3-node cluster is optional and needs one more tool, TiUP:
@@ -153,7 +167,7 @@ The 3-node cluster is optional and needs one more tool, TiUP:
 
 | Symptom | Cause and fix |
 |---|---|
-| `did not start; see …/surreal.log` | Port 8099 in use, or wrong SurrealDB version. Check `surreal version` and `lsof -i :8099` |
+| `did not start; see …/surreal.log` | Port 8099 in use, or wrong SurrealDB version. Check `surreal version` and `lsof -i :8099` (the `deprecated` warning at the top of the log is harmless) |
 | `The database 'x' does not exist` | In 3.x namespaces and databases are not created on the fly. Run `demo.sh up` (or `apply.sh`), which defines them |
 | Surrealist shows no *Live* mode | The connection is HTTP. Make it `ws://` |
 | Surrealist spins and the laptop heats up | A big result in **Graph** view (e.g. `SELECT * FROM account` on `volume` or `aml`). Quit Surrealist and always add `LIMIT` |

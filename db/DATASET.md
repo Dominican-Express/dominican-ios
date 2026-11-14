@@ -23,7 +23,7 @@ gather-scatter, bipartite, stack, random).
 
 ## What is in the repo
 
-`data/ibm-aml/HI-Small-sample_*` (6.5 MB), same format as the original:
+`data/ibm-aml/HI-Small-sample_*` (4.8 MB), same format as the original:
 
 | File | Content |
 |---|---|
@@ -68,9 +68,18 @@ curl -s -u root:root -H 'surreal-ns: dx' -H 'surreal-db: aml' -H 'Accept: applic
 
 # calibration table (Python reference, no database)
 uv run --with numpy python db/demo/aml_prefilter.py --data db/data/ibm-aml --set HI-Small-sample
+# expected last lines: candidatas: 381 transferencias, 256 cuentas
+#                      filas del CSV guardadas en db/data/ibm-aml/HI-Small-sample_candidates_0.8_1.2_72h.txt
 uv run --with numpy python db/demo/aml_eval.py --data db/data/ibm-aml --set HI-Small-sample \
     --rows HI-Small-sample_candidates_0.8_1.2_72h.txt
+# expected: the 45-rule grid, then
+#   elegida: lo=0.90 hi=1.20 gap=72 h  →  33/54 ciclos, precisión 98.6%
+# (row 0.85 1.00 48 is the strict rule: 7 rings, 20 accounts, 6/54)
 ```
+
+The loader and the scripts print in Spanish (`transferencias` transfers,
+`cuentas` accounts, `ciclos` cycles, `precisión` precision, `elegida` chosen).
+Loading again into `aml` is safe: the sweep still gives 20 and 191.
 
 **From the full set** (~510 MB download, ~3 min of CPU for the prefilter):
 
@@ -80,6 +89,16 @@ uv run --with numpy python db/demo/aml_prefilter.py --data "$DIR" --set HI-Small
 uv run --with numpy python db/demo/aml_eval.py --data "$DIR" --set HI-Small \
     --rows HI-Small_candidates_0.8_1.2_72h.txt
 python3 db/demo/aml_sample.py --data "$DIR" --rows HI-Small_candidates_0.8_1.2_72h.txt   # rebuilds the sample
+```
+
+The held-out check on LI-Small (the 1/12 and 8/12 of Findings) applies both rules
+unchanged with `--only`:
+
+```sh
+LI=$(./db/demo/aml_fetch.sh LI-Small)
+uv run --with numpy python db/demo/aml_prefilter.py --data "$LI" --set LI-Small
+uv run --with numpy python db/demo/aml_eval.py --data "$LI" --set LI-Small \
+    --rows LI-Small_candidates_0.8_1.2_72h.txt --only "0.85,1.00,48;0.90,1.20,72"
 ```
 
 ## How the data is mapped

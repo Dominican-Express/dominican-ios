@@ -63,8 +63,10 @@ curl --proto '=https' --tlsv1.2 -sSf https://tiup-mirrors.pingcap.com/install.sh
 ```
 
 No `sudo`. It installs into `~/.tiup` and appends `~/.tiup/bin` to your PATH
-in your shell's startup file (`~/.zshrc` for zsh). Open a new terminal, or
-skip that step: `demo.sh` finds `~/.tiup/bin/tiup` on its own. Check:
+in your shell's startup file; it prints which one as `Shell profile:`. With zsh
+it is `~/.zshrc` if that file exists; if it does not, it picks `~/.profile`,
+which zsh does not read. Open a new terminal, or skip that step: `demo.sh`
+finds `~/.tiup/bin/tiup` on its own. Check:
 
 ```sh
 ~/.tiup/bin/tiup --version     # 1.17.1 or later
@@ -72,7 +74,7 @@ skip that step: `demo.sh` finds `~/.tiup/bin/tiup` on its own. Check:
 
 To remove everything later: `rm -rf ~/.tiup` and delete that PATH line.
 
-HAProxy, the load balancer (6.3 MB): `brew install haproxy` on macOS,
+HAProxy, the load balancer (6.3 MB): `brew install haproxy` on macOS (skip it if `haproxy -v` already works),
 `sudo apt install haproxy` on Debian or Ubuntu. Check: `haproxy -v` (3.x).
 
 ## Step 2: start the cluster
@@ -155,16 +157,22 @@ added the load balancer; the last one through HAProxy):
 | The leader of all 5 regions (two runs) | 5 and 7 failed with an error, then OK again | writes resumed 9 to 12 s after the kill |
 | The leader of all 5 regions, through HAProxy (two runs) | 6 and 7 failed with an error, then OK again | writes resumed about 13 s after the kill |
 
-The hard case, from our run (trimmed):
+The hard case, through HAProxy (trimmed):
 
 ```
-11:42:02 beat:9  OK     42 ms
-         (TiKV killed)
-11:42:04 beat:10 ERROR  1579 ms
-...                                   five writes fail, about 1.6 s each
-11:42:13 beat:15 OK     1576 ms
-11:42:14 beat:16 OK       42 ms      back to normal on the other two TiKV
+killed TiKV store 1 (127.0.0.1:20160, PID 18237), leader of 5 of 5 regions
+00:24:28  write 8 via HAProxy -> node B: OK 44 ms
+00:24:30  write 9 via HAProxy -> node A: ERROR 1632 ms
+...                                          seven writes fail, about 1.6 s each
+00:24:42  write 15 via HAProxy -> node A: ERROR 1564 ms
+00:24:42  write 16 via HAProxy -> node B: OK 180 ms
+00:24:42  write 17 via HAProxy -> node A: OK 47 ms   back to normal on the other two TiKV
+...
+the cluster now holds: 33 beats in total
 ```
+
+The final count includes the writes of any earlier `cluster-write` run, so it
+grows from one run to the next.
 
 Node A logged `gRPC api error: code: 'The service is currently unavailable'`.
 What matters for a bank:
@@ -193,9 +201,19 @@ TiKV 127.0.0.1:20160 is back; it catches up from the other two
 
 It restarts the killed TiKV on its own data directory; it is `Up` again in
 about 10 s and catches up from the Raft log of the other two. To prove it had
-caught up we moved the leadership of every region to it (PD API,
-`transfer-leader`) and read through node B: it returned all 35 writes,
-including the ones made while it was dead.
+caught up we moved the leadership of every region to it and read through node B:
+it returned all 35 writes, including the ones made while it was dead. To do the
+same (store `1` is the one `cluster-kill` named):
+
+```sh
+PD=http://127.0.0.1:2379/pd/api/v1
+for r in $(curl -s $PD/regions | python3 -c 'import json,sys; [print(x["id"]) for x in json.load(sys.stdin)["regions"]]'); do
+  curl -s -X POST $PD/operators -d "{\"name\":\"transfer-leader\",\"region_id\":$r,\"to_store_id\":1}"; echo
+done
+./db/demo/demo.sh cluster-status        # a few seconds later store 1 leads all 5
+curl -s -u root:root -H 'surreal-ns: dx' -H 'surreal-db: cluster' -H 'Accept: application/json' \
+  http://127.0.0.1:8102/sql --data-binary "RETURN count(SELECT id FROM beat);"
+```
 
 ## Step 6: kill a SurrealDB node
 
@@ -218,6 +236,8 @@ From our run (trimmed):
 19:35:55  write 40 via HAProxy -> node B: OK 46 ms
 the cluster now holds: 40 beats in total
 ```
+
+(40 on a fresh cluster; after step 4 it also counts those writes, for example 73.)
 
 Three runs, **40 of 40 writes OK every time, none slower than 52 ms**. The
 requests alternate A, B, A, B until A dies; from then on all go to B. The
@@ -327,18 +347,25 @@ node, and the cluster is the demonstration of replication and fault tolerance.
 
 ## Doing it by hand
 
-What `cluster-up` runs, without the script:
+What `cluster-up` runs, without the script, from the repository root.
+`tiup playground`, the two `surreal start` and `haproxy` keep running in the
+foreground: give each one its own terminal (four in total), then run the rest in a fifth.
+Use `~/.tiup/bin/tiup` if `tiup` is not in your PATH yet.
 
 ```sh
 tiup playground v8.5.8 --mode tikv-slim --pd 1 --kv 3 --without-monitor \
-     --tag dominican-express --kv.config db/cluster/tikv.toml
+     --tag dominican-express --kv.config db/cluster/tikv.toml           # terminal 1
+surreal start --username root --password root --bind 127.0.0.1:8101 tikv://127.0.0.1:2379   # terminal 2
+surreal start --username root --password root --bind 127.0.0.1:8102 tikv://127.0.0.1:2379   # terminal 3
+haproxy -f db/cluster/haproxy.cfg                                     # terminal 4
+# terminal 5, once the three TiKV are Up:
 curl -s -X POST http://127.0.0.1:2379/pd/api/v1/config/replicate -d '{"max-replicas":3}'
-surreal start --username root --password root --bind 127.0.0.1:8101 tikv://127.0.0.1:2379
-surreal start --username root --password root --bind 127.0.0.1:8102 tikv://127.0.0.1:2379
-haproxy -f db/cluster/haproxy.cfg
 SURREAL_URL=http://127.0.0.1:8101 SURREAL_DB=cluster ./db/demo/apply.sh
-SURREAL_URL=http://127.0.0.1:8101 SURREAL_DB=cluster ./db/demo/surql.sh 01_seed.surql
+SURREAL_URL=http://127.0.0.1:8101 SURREAL_DB=cluster ./db/demo/surql.sh db/demo/01_seed.surql
 ```
+
+`surql.sh` reads the file path relative to where you run it, so from the
+repository root the seed is `db/demo/01_seed.surql`.
 
 `--without-monitor` skips Prometheus and Grafana, which playground starts by
 default. PD's HTTP API shows the state: `curl -s http://127.0.0.1:2379/pd/api/v1/stores`.
