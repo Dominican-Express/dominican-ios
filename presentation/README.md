@@ -18,8 +18,8 @@ Requires [uv](https://docs.astral.sh/uv/) and the fonts **Geist** and
 `brew install --cask font-geist font-jetbrains-mono`). The scripts look for them
 in `~/Library/Fonts`, where those casks put them: without them `build.py` draws
 the charts in a fallback font without warning, and `preview.py` stops with
-`OSError: cannot open resource`. Install them also on the computer that
-presents: PowerPoint does not embed them.
+`OSError: cannot open resource`. Also install them on the computer used for
+the presentation, because PowerPoint does not embed them.
 
 ```sh
 uv run --with python-pptx --with matplotlib --with pillow --with qrcode --with networkx python presentation/build.py
@@ -33,7 +33,7 @@ prints `no overflow warnings` when every text fits its box.
 | File | Does |
 |---|---|
 | `build.py` | The 18 slides and their speaker notes |
-| `style.py` | Palette and fonts of Surrealist (flat colours), layout, boxes, arrows, tables |
+| `style.py` | Surrealist's palette and fonts (flat colours), layout, boxes, arrows, tables |
 | `charts.py` | Charts and terminal captures, as PNG in `assets/gen/` |
 | `assets/term/*.txt` | Real terminal output used in the captures (trimmed where marked) |
 | `preview.py` | Renders the deck without PowerPoint to catch overflow; the final check is opening it in PowerPoint |

@@ -10,8 +10,8 @@ one node or on a three-store TiKV cluster.
 
 ![A mule ring forms and six fraud alerts arrive on their own in Surrealist, over a live query](docs/demo.gif)
 
-[Watch the full demo](presentation/assets/video/demo.mp4) (4:40: live alerts, a node and a storage
-leader killed during payments, the Python SDK) and the
+[Watch the full demo](presentation/assets/video/demo.mp4) (4:40, with live alerts, a node and a
+storage leader killed during payments, and the Python SDK) and the
 [slides](presentation/dominican-express.pptx).
 
 ## The path of a request
@@ -19,8 +19,8 @@ leader killed during payments, the Python SDK) and the
 ![The app, HAProxy, two stateless SurrealDB nodes, PD and three TiKV stores](docs/figures/architecture.png)
 
 The app signs in with the customer's own token and calls the database's HTTP API through HAProxy.
-The SurrealDB nodes keep no state, so any of them can answer: permissions, functions and the API are
-in the schema. Storage is TiKV, where Raft keeps every region on the three stores and a write counts
+The SurrealDB nodes keep no state, so any of them can answer, because permissions, functions and the
+API are in the schema. Storage is TiKV, where Raft keeps every region on the three stores and a write counts
 once two of them have it.
 
 ## Fraud, live
@@ -28,8 +28,8 @@ once two of them have it.
 ![The real transfer graph of the volume database, with the rings in violet](docs/figures/graph.png)
 
 Rings, shared devices, structuring and impossible travel are found by the database itself. Alerts
-are pushed to whoever listens (a `LIVE SELECT`), and an event freezes the ring accounts in
-proportion: a ring is frozen, a split withdrawal only goes to review. A suspect who tries to erase
+are pushed to whoever listens (a `LIVE SELECT`), and an event responds in proportion: ring
+accounts are frozen, while a split withdrawal only goes to review. A suspect who tries to erase
 the trail is blocked, and the attempt is audited by an event that no path can skip.
 
 ![Laundering cycles found on IBM's dataset, and the prefilter](docs/figures/ibm.png)
@@ -49,18 +49,18 @@ control variant that only sums the ledger has nothing to conflict on, and overdr
 
 ![40 writes through HAProxy while node A dies, and while the TiKV leader dies](docs/figures/failover.png)
 
-Taken from the recorded demo. A dead SurrealDB node costs nothing: HAProxy takes it out after two
-failed checks and every write lands on the other one. A dead storage leader costs a few seconds of
-errors while Raft elects a new one, and nothing half applied: the final count is exactly the writes
-that answered OK. The health check asks `/status`, not `/health`: with `/health` a storage election
-took both nodes out and 22 of 40 writes failed.
+These figures come from the recorded demo. When a SurrealDB node dies, HAProxy takes it out after
+two failed checks and every write lands on the other node, with no errors. When a storage leader
+dies, there are a few seconds of errors while Raft elects a new one, but no write is half applied:
+the final count is exactly the writes that answered OK. The health check asks `/status` rather than
+`/health`; with `/health`, a storage election took both nodes out and 22 of 40 writes failed.
 
 ## How results are verified
 
 ![Every suite also run against code broken on purpose: 74 of 74 breaks caught](docs/figures/redteam.png)
 
-A test only counts if it has been seen failing: each suite is also run against the code broken on
-purpose, and every break is caught.
+Each suite is also run against the code broken on purpose, so every test has been seen failing,
+and every break is caught.
 
 | | |
 |---|---|
@@ -125,7 +125,7 @@ starts on mock data; with four launch arguments it signs in to the database and 
 Course project by Xabier Ariznabarreta (database and architecture), Jorge Pérez (iOS app) and
 Javier Pérez.
 
-## License
+## Licence
 
 The database code in `db/` is under the MIT licence ([db/LICENSE](db/LICENSE)). The IBM data sample
-in `db/data/ibm-aml/` is under CDLA-Sharing-1.0, as its source.
+in `db/data/ibm-aml/` is under CDLA-Sharing-1.0, the same licence as its source.

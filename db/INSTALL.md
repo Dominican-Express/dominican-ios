@@ -167,7 +167,7 @@ The 3-node cluster is optional and needs one more tool, TiUP:
 
 | Symptom | Cause and fix |
 |---|---|
-| `did not start; see …/surreal.log` | Port 8099 in use, or wrong SurrealDB version. Check `surreal version` and `lsof -i :8099` (the `deprecated` warning at the top of the log is harmless) |
+| `did not start; see <data folder>/surreal.log` | Port 8099 in use, or wrong SurrealDB version. Check `surreal version` and `lsof -i :8099` (the `deprecated` warning at the top of the log is harmless) |
 | `The database 'x' does not exist` | In 3.x namespaces and databases are not created on the fly. Run `demo.sh up` (or `apply.sh`), which defines them |
 | Surrealist shows no *Live* mode | The connection is HTTP. Make it `ws://` |
 | Surrealist spins and the laptop heats up | A big result in **Graph** view (e.g. `SELECT * FROM account` on `volume` or `aml`). Quit Surrealist and always add `LIMIT` |

@@ -48,10 +48,11 @@ transactions), relationships (a graph, for fraud) and sensitive data
 | ArangoDB | The serious alternative (documents + graph). Rejected for its permissions: only per database and collection. Full ACID only on a single server. No query into the past. |
 | PostgreSQL | Not NoSQL, which the course requires. Its documentation says it "does not currently support system time"; graph queries are recursive CTEs; row-level security is not a graph traversal. |
 
-The licence is **not** an argument: SurrealDB and ArangoDB are both BSL 1.1.
+The licence is not an argument: SurrealDB and ArangoDB are both BSL 1.1.
 
-Time travel weighed in: SurrealDB was the only one of the five engines
-compared with queries into the past inside the language (`SELECT ... VERSION`).
+Time travel also counted in its favour: SurrealDB was the only one of the five
+engines compared with queries into the past inside the language
+(`SELECT ... VERSION`).
 
 **Evidence.** Feature comparison from documentation. Performance against these
 engines: **not measured**. We do not claim SurrealDB is faster than any of
@@ -78,16 +79,16 @@ defined in SurrealQL with `DEFINE API` (`07_api.surql`, `08_cards.surql`,
 **Alternatives considered.** Keep Java as a thin layer (rejected: duplicates
 authentication and permissions that SurrealDB 3 already provides). Put
 everything, reads included, behind endpoints (rejected: an endpoint body runs
-**without** permission checks, so protecting the CVV or other people's
+without permission checks, so protecting the CVV or other people's
 accounts would depend on every endpoint repeating the check correctly; left in
 permissions, the database applies them always).
 
 **Evidence.** `payments_test.py`: 35 checks (32 without `--race`), verifying
 the real effect as root, not just the response. `payments_redteam.py`: 11/11
 breaks detected. Payment orders are also the idempotency key: in 10 rounds of
-10 copies of the **same** order, it is paid once and all ten copies get 201.
+10 copies of the same order, it is paid once and all ten copies get 201.
 
-**Consequences and costs.** Clients can run free **read** queries; permissions
+**Consequences and costs.** Clients can run free read queries; permissions
 limit what they see, not what it costs (CPU). In production we would close
 this with `--deny-arbitrary-query record` and move reads to endpoints too. A
 malformed JSON body gives 500 instead of 400, because SurrealQL has no
@@ -113,11 +114,11 @@ because concurrent transfers insert different records and never conflict. The
 `UPDATE account SET balance` creates the write-write conflict that serialises
 them. With 10 concurrent full-balance transfers: `fn::transfer` 0/20 rounds
 with overdraft, `fn::transfer_unsafe` 13/20 (README.es.md). The schema comment
-records another run: 0/30 against 7/30, and on 2026-11-11 two runs gave 11/20
-and 12/20, and on 2026-11-13 six runs gave 16, 12, 11, 15, 12 and 12 of 20. The unsafe count varies from run to run; the safe one has always
-been 0.
+records another run, 0/30 against 7/30. Two runs on 2026-11-11 gave 11/20 and
+12/20, and six runs on 2026-11-13 gave 16, 12, 11, 15, 12 and 12 of 20. The
+unsafe count varies from run to run; the safe one has always been 0.
 
-The test itself once lied. It counted any final balance other than 0 as an
+An earlier version of the test gave a false result. It counted any final balance other than 0 as an
 overdraft, so on a database where the attack had frozen the account no
 transfer went through, the balance stayed at 100, and the safe version showed
 "20/20 rounds ended in an overdraft". It now tells apart overdraft (below 0),
@@ -134,7 +135,7 @@ failing case of the test.
 **Context.** Fraud detection needs graph traversals; accounting needs the
 ledger.
 
-**Decision.** `fn::transfer` writes the entries **and** `RELATE
+**Decision.** `fn::transfer` writes the entries and `RELATE
 $from->transfer->$to` in the same transaction. The ledger is the accounting
 truth; the edge is the graph projection the detectors traverse.
 
@@ -145,9 +146,9 @@ truth; the edge is the graph projection the detectors traverse.
 **Evidence.** Same transaction, so they cannot diverge; reconciliation stays
 empty. Speed gain of edges over ledger queries: **not measured**.
 
-**Consequences and costs.** The fact is stored twice. This is the multi-model
-argument in one line: two models of the same fact in one database, without
-ETL.
+**Consequences and costs.** The fact is stored twice, but both copies
+live in one database and are written in one transaction, with no ETL between
+them.
 
 ## 5. Authorization is a graph traversal
 
@@ -187,7 +188,7 @@ The PIN travels in the request and is never stored.
 2. `DEFINE EVENT`: writes with privilege, but rejecting means throwing, and the
    throw also undoes the failure counter. A 4-digit PIN allowed all 10,000
    attempts.
-3. `DEFINE API`: rejects by **returning** 401, so the failure is kept. Chosen.
+3. `DEFINE API`: rejects by returning 401, so the failure is kept. Chosen.
 
 **Evidence.** `cards_test.py`: 41 checks (PIN limit, cards, notifications);
 `cards_redteam.py`: 12/12.
@@ -200,10 +201,11 @@ the PIN does (README.es.md, "Pendiente").
 **Context.** `DEFINE EVENT` runs inside the payment's transaction; if it
 throws, the payment is undone, and its cost is added to every write.
 
-**Decision.** **In-line** (events, `04_events.surql`): only bounded,
-index-backed detectors: velocity, impossible travel, low balance. **Sweeps**
-(`05_detectors.surql`): graph traversals and window aggregations outside the
-payment path: mule rings, shared device, structuring. Both write to
+**Decision.** In-line detectors run as events (`04_events.surql`) and are
+limited to bounded, index-backed checks (velocity, impossible travel, low
+balance). Sweeps (`05_detectors.surql`) run outside the payment path and do the
+graph traversals and window aggregations (mule rings, shared device,
+structuring). Both write to
 `fraud_alert`, the one table the dashboard's `LIVE SELECT` listens to.
 
 **Alternatives considered.** Everything in events (rejected: a graph search
@@ -225,10 +227,10 @@ trade-off accepted on purpose.
 
 **Context.** The first detector looked for any cycle of 2 to 5 hops.
 
-**Decision.** Redefine the problem before optimising it: a ring is the **same
-money forwarded**: each hop leaves soon after the previous one arrived (under
-48 h), for a slightly smaller amount (85 to 100 %), through 3 or more accounts,
-back to the origin. Implemented as a recursive function (`fn::ring_from`)
+**Decision.** We redefined the problem before optimising it. A ring is the
+same money being forwarded: each hop leaves soon after the previous one arrived
+(under 48 h), for a slightly smaller amount (85 to 100 %), through 3 or more
+accounts, and back to the origin. Implemented as a recursive function (`fn::ring_from`)
 because a `LET` inside a `FOR` does not reassign the outer variable.
 
 **Alternatives considered.** Make the naive cycle search faster (rejected: two
@@ -277,8 +279,8 @@ hurt real people.
 | `possible_ring`, `shared_device`, `structuring`, `velocity` | "under review" |
 | `low_balance` | nothing |
 
-Freezing blocks **outgoing** money; incoming money still arrives. The API
-answers `423 account_frozen` **without saying why**: telling a suspect of
+Freezing blocks outgoing money; incoming money still arrives. The API
+answers `423 account_frozen` without saying why: telling a suspect of
 money laundering that they are being investigated is prohibited (art. 24 of
 Spanish Ley 10/2010). A second check inside `fn::transfer` and `fn::debit_at`
 covers direct calls. Releasing is `fn::release_account(account, note)`,
@@ -303,7 +305,7 @@ cannot touch a ledger entry. Unlinking a device goes through
 `POST /devices/unlink`, which sets `ended_at` and keeps the edge; the
 shared-device detector still counts it. Every change to edges, devices, cards,
 accounts and customers writes an `audit_log` row with before, after, when and
-**who** (`actor`, `via`), written by events, so there is no path around it.
+who (`actor`, `via`), written by events, so there is no path around it.
 The PAN, CVV and NIF never enter it (analysts read it). Balance changes are not
 audited: they are already in the immutable ledger and in `payment_order`.
 
@@ -327,14 +329,14 @@ copy is not built.
 balance (`fn::balance_at`) with no expiry. **System time**: SurrealKV
 versioning (30-day retention) for what can change or be deleted;
 `fn::investigate(alert)` rebuilds accounts, owners, balances and devices at the
-alert instant and lists what changed. It is **not** the evidence store; the
+alert instant and lists what changed. It is not the evidence store; the
 audit log (decision 11) is.
 
-**Why not evidence:** 30 days against 5 years (EU directive 2015/849) and 10
-years (Spanish law) of legal retention; it lives on the server being
-investigated; it does not record **who**; SurrealKV is beta; and bug #7601
-returned records deleted before the requested date, which in an investigation
-is false evidence.
+**Why not evidence.** It keeps 30 days, against 5 years (EU directive
+2015/849) and 10 years (Spanish law) of legal retention. It lives on the server
+being investigated. It does not record who made a change. And SurrealKV is
+beta: bug #7601 returned records deleted before the requested date, which in an
+investigation is false evidence.
 
 **Evidence.** Disk: 26 MB without versioning, 42 MB with it (+62 %); load time
 55 s against 53 s (one run each, noise). The two clocks agree account by
@@ -366,13 +368,14 @@ the 6 attack alerts.
 
 ## 14. Testing by attacking it
 
-**Context.** A test you have never seen fail guards nothing.
+**Context.** If a test has never been seen to fail, nothing shows that it
+would catch the bug it was written for.
 
 **Decision.** Every protection has a red-team case: `demo/redteam.py` applies
-the **real** schema with one exact text replaced (for example
+the real schema with one exact text replaced (for example
 `PERMISSIONS NONE` turned into `PERMISSIONS FULL`) and requires the guarding
 test to fail. If the text to break disappears from the file, the case counts
-as broken. Attacks are verified by their **effect as root**: a user without
+as broken. Attacks are verified by their effect as root: a user without
 read permission sees `[]` whether the row exists or not.
 
 **Alternatives considered.** Hand-written redefinitions of the broken code
@@ -396,9 +399,9 @@ independent data with a known answer: IBM's synthetic AML dataset
 **Decision.** Calibrate with a method fixed in advance (grid of amount bounds
 and time gaps, best recall with precision at least 95 %, ties to the
 strictest), on HI-Small, then apply it untouched to LI-Small. Two tiers:
-strict ring (0.85 to 1.00, 48 h) gives `mule_ring` and **freezes**; a ring only
+strict ring (0.85 to 1.00, 48 h) gives `mule_ring` and freezes; a ring only
 the wide rule sees (0.90 to 1.20, 72 h) gives `possible_ring` and goes to
-**review**.
+review.
 
 **Evidence.**
 
@@ -422,8 +425,8 @@ do not recalibrate on LI-Small.
 minutes on a fanless laptop.
 
 **Decision.** `demo/aml_prefilter.py` removes, in a linear pass repeated until
-nothing changes, every transfer that **cannot** be part of a ring under the
-most permissive rule: it must have a previous **or** a next hop under the rule,
+nothing changes, every transfer that cannot be part of a ring under the
+most permissive rule: it must have a previous or a next hop under the rule,
 and its accounts must be in the same strongly connected component of at least
 3 accounts. Only the survivors are loaded.
 
@@ -511,6 +514,5 @@ from the storage election. A live query opened through HAProxy received 5 of
 10 changes when the writes were spread over both nodes, in three runs.
 
 **Consequences and costs.** One more process, and in this setup a single point
-of failure (production runs two balancers on a floating address, with TLS). A
-health check must test the node, not what all nodes share. Live alerts need
+of failure (production runs two balancers on a floating address, with TLS). Live alerts need
 one connection per node, or a re-read on reconnect.
