@@ -276,14 +276,13 @@ repo, step by step, so another student can reproduce it.""")
 
     # 12 --------------------------------------------------------------- Xabier
     s = frame(prs, 12, "The system under attack", "Recorded on this laptop, nothing staged", notes="""
-XABIER (video, about 5 minutes; narrate over it).
-1. The iPhone app through HAProxy: Ana signs in, sees her real balance, pays a Bizum to
-   Luis; the balance drops by exactly that amount.
-2. Surrealist, live alerts: a mule ring forms, six alerts arrive on their own, the ring is
+XABIER (video, 4 minutes 40; narrate over it).
+1. Surrealist, live alerts: a mule ring forms, six alerts arrive on their own, the ring is
    frozen in proportion, Marta tries to erase the trail and cannot.
-3. The cluster: HAProxy's health checks and the TiKV stores in view, SurrealDB node A killed during payments (every
-   payment still OK), then a TiKV leader killed (a few seconds of errors, nothing lost).
-4. Python with the official SDK: create, read, update, delete; a retried payment charged
+2. The cluster: HAProxy's health checks and the TiKV stores in view, SurrealDB node A
+   killed during payments (every payment still OK), then a TiKV leader killed (a few
+   seconds of errors, nothing lost).
+3. Python with the official SDK: create, read, update, delete; a retried payment charged
    once.""")
     video = HERE / "assets" / "video" / "demo.mp4"
     if video.exists():
@@ -295,8 +294,7 @@ XABIER (video, about 5 minutes; narrate over it).
                            poster_frame_image=str(poster) if poster.exists() else None,
                            mime_type="video/mp4")
     else:
-        commands(s, [("iPhone app", "pays through HAProxy"),
-                     ("live alerts", "a ring is frozen"),
+        commands(s, [("live alerts", "a ring is frozen"),
                      ("kill node A", "payments continue"),
                      ("kill a TiKV", "nothing lost"),
                      ("Python SDK", "insert, query, update, delete")])
