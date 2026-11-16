@@ -44,7 +44,7 @@ prints `no overflow warnings` when every text fits its box.
 |---|---|---|
 | 1 | graph: 2,827 transfers, 301 accounts, 22 in rings | database `volume` exported to `assets/data/volume-graph.json` |
 | 3 | BankRepository, mock and SurrealDB implementations; Decimal sent as text; one UUID per payment attempt | [APP_INTEGRATION.md](../db/APP_INTEGRATION.md), "In the iOS app"; [README.md](../README.md), "The iOS app" |
-| 5 | Java backend dropped; graph database fed by ETL rejected; ledger, graph and permissions in one transaction | [DECISIONS.md](../db/DECISIONS.md) 2 and 4; [REFLECTION.md](../db/REFLECTION.md), "Strengths observed" |
+| 5 | API inside the database instead of an application server; graph database fed by ETL rejected; ledger, graph and permissions in one transaction | [DECISIONS.md](../db/DECISIONS.md) 2 and 4; [REFLECTION.md](../db/REFLECTION.md), "Strengths observed" |
 | 8 | node killed: 0 of 40 failed (3 runs); /health 22 of 40; /status 6 and 7 of 40 | [CLUSTER.md](../db/CLUSTER.md), "The load balancer"; [DECISIONS.md](../db/DECISIONS.md) 20 |
 | 9 | Ana `titular`, Luis `cotitular` | query on `bank`, [DEMO.md](../db/DEMO.md) part A |
 | 10 | 0 of 20; 11 to 16 of 20 | `demo.sh race`, six runs on 2026-11-13 (16, 12, 11, 15, 12, 12); [DECISIONS.md](../db/DECISIONS.md) 3 |

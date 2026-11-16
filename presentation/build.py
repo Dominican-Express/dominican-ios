@@ -138,16 +138,16 @@ records link to each other by ID, there are no JOINs.""")
 
     # ------------------------------------------------------------------ Jorge
     s = frame(prs, next(num), "One engine instead of several",
-              "No ETL, no second system, no bridge table", notes="""
-JORGE. Our first group plan had three layers: the app, a Java backend, and the database.
-Java was one more layer to maintain, deploy and secure. For fraud, one option was a
-separate graph database, fed by an ETL process. We rejected both. Two systems can diverge, and sign-in
-and permissions would be written twice. In SurrealDB the ledger, the transfer graph and
+              "Ledger, graph and permissions in one transaction", notes="""
+JORGE. A common way to build this is with several pieces: an application server between
+the app and the database, a database for the money, and for fraud a separate graph
+database, fed by an ETL process. Two systems can diverge, and sign-in and permissions end
+up written in two places. In SurrealDB the ledger, the transfer graph and
 the permissions live in one database and commit in one transaction. A transfer writes the
 accounting entries and the graph edge together. And the same path, from a customer
 through owns to an account, decides what you can see and feeds the fraud detectors.""")
     for i, (head, items, acc) in enumerate([
-            ("Separate systems", ["App, then a Java backend", "A database for the money",
+            ("Separate systems", ["An application server in front", "A database for the money",
                                   "A graph database fed by ETL"], False),
             ("One engine", ["API inside the database", "Ledger and graph, one transaction",
                             "Permissions are graph paths"], True)]):
@@ -392,7 +392,7 @@ some passed with the bug still in place, and some crashed instead of failing."""
     # ------------------------------------------------------------------ Javier
     s = frame(prs, next(num), "Lessons from building it",
               "Found by running, measuring or breaking it", notes="""
-JAVIER. Building on a young engine taught us some lessons. Functions were renamed between
+JAVIER. Building the project taught us some lessons about the engine. Functions were renamed between
 3.x versions, so we pinned 3.2.4 and test everything on it. The time-travel bug only
 appears on the disk engine, SurrealKV. In memory, that red team caught only 6 of 10
 breaks, so our tests run on SurrealKV, where it catches 10 of 10. A write conflict comes
@@ -453,9 +453,9 @@ still be copied out to write-once storage.""")
     s = frame(prs, next(num), "What we would do next", "What we would change, what is still missing",
               notes="""
 JAVIER. If we started again, we would test as an app user and on the real engine from day
-one. Testing as root and in memory hid real problems from us twice. We would also measure
-every engine feature before building on it. For production, apps should not send free queries: permissions limit what a customer sees,
-not the CPU a query costs. Then the next steps. A write-once copy of the audit log,
+one, as our final test suites do. We would also measure every engine feature before
+building on it. For production, apps should not send free queries: permissions limit what
+a customer sees, not the CPU a query costs. Then the next steps. A write-once copy of the audit log,
 because the law asks for five to ten years and versioning keeps 30 days. A limit on
 password attempts: today only the PIN locks, after three failures. And a measured
 comparison of our ring detector against a recursive query in PostgreSQL.""")
