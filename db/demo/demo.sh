@@ -144,7 +144,7 @@ case "$1" in
     curl -s -X POST "$URL/sql" -u root:root -H "surreal-ns: dx" \
          --data-binary "REMOVE DATABASE IF EXISTS access;" > /dev/null
     ./apply.sh > /dev/null && ./surql.sh 01_seed.surql > /dev/null
-    python3 access_test.py
+    DEMO_LANG=en python3 access_test.py
     ;;
   studio)
     mkdir -p "${STUDIO_DATA:h}"

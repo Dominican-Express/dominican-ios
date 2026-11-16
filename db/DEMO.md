@@ -175,7 +175,8 @@ every time.
 ```
 
 Signs in as Ana and Luis (record access) and tries to read what is not theirs.
-Output is in Spanish; every line must be `[ok   ]` and the last `TODO EN ORDEN`.
+Every line must be `[ok   ]` and the last `ALL CORRECT` (run `python3
+access_test.py` directly for the Spanish version the test suite uses).
 Examples: Ana does not see other accounts; Luis, co-holder of Ana's account,
 sees it but not Ana's card number, even after verifying his PIN.
 
