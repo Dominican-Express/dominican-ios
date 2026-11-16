@@ -1,4 +1,4 @@
-"""Genera presentation/dominican-express.pptx (18 diapositivas, notas del orador).
+"""Genera presentation/dominican-express.pptx (22 diapositivas, notas del orador; el número de cada una se cuenta solo).
 
     uv run --with python-pptx --with matplotlib --with pillow --with qrcode --with networkx python presentation/build.py
 
@@ -72,29 +72,54 @@ def build():
     g = charts.all_charts()
     prs = Presentation()
     prs.slide_width, prs.slide_height = W, H
+    num = iter(range(1, 100))  # número de diapositiva: se cuenta solo al insertar una
 
-    # 1 ---------------------------------------------------------------- Jorge
-    s = frame(prs, 1, None, notes="""
+    # ------------------------------------------------------------------ Jorge
+    s = frame(prs, next(num), None, notes="""
 JORGE. Good morning. We are Jorge, Xabier and Javier, and this is Dominican Express:
 a digital bank. The deliverable of this course is the database, and in our project the
 database is not just storage: the whole backend, from payments to fraud detection,
 lives inside it. On the right, real data from our test bank: 2,827 transfers between
 300 customers over 60 days. The violet ones are the 22 accounts the database itself
-found moving money in rings.""")
+found moving money in rings.
+I will start with the product and why we chose this database. Then Xabier shows the
+architecture and how it behaves when we break it, and Javier closes with a critical look.""")
     cover(s)
 
-    # 2 ---------------------------------------------------------------- Jorge
-    s = frame(prs, 2, "The product", "iOS app in SwiftUI, talking to the database", notes="""
+    # ------------------------------------------------------------------ Jorge
+    s = frame(prs, next(num), "The product", "iOS app in SwiftUI, talking to the database", notes="""
 JORGE. The product is a mobile bank: accounts, transfers, Bizum between customers,
-cards, shared accounts. This is our iOS app, written in SwiftUI. It started on mock data;
-now it reads and pays against the real database, with no server in between. Xabier will
-show you the path of every request.""")
+cards, shared accounts. This is our iOS app, written in SwiftUI. On the left, the home
+screen: the total balance, buttons to send money or make a Bizum, and the recent
+activity. On the right, the card screen, with the monthly spending limit. The app started
+on mock data. Now it reads and pays against the real database, with no server in
+between.""")
     shots = HERE.parent / "docs" / "screenshots"
     picture(s, shots / "home.png", x=int(W / 2 - I(3.0)), max_w=I(2.8))
     picture(s, shots / "cards.png", x=int(W / 2 + I(0.2)), max_w=I(2.8))
 
-    # 3 ---------------------------------------------------------------- Jorge
-    s = frame(prs, 3, "What SurrealDB is", "NoSQL, multi-model. Looks like SQL, has no JOINs",
+    # ------------------------------------------------------------------ Jorge
+    s = frame(prs, next(num), "Inside the app", "One protocol, two data sources", notes="""
+JORGE. I built the app. It uses SwiftUI with MVVM and async/await, in Swift 6. The views
+read everything through one protocol, BankRepository, which has two implementations. The
+mock one has fixed demo data and is the default. The SurrealDB one makes real HTTP
+calls. Four launch arguments in Xcode switch between them, and the views do not change.
+Two details matter for a bank. Money is a Decimal in the app and travels as text, never
+as a floating point number. And every payment attempt carries a new UUID, so if the same
+order arrives twice, the database pays it once.""")
+    box(s, I(2.65), TOP + I(0.1), I(8.0), I(0.95), "SwiftUI views and view models",
+        sub="MVVM, async/await, Swift 6", size=22)
+    arrow(s, I(6.65), TOP + I(1.05), I(6.65), TOP + I(1.6))
+    box(s, I(3.9), TOP + I(1.6), I(5.5), I(0.95), "BankRepository", sub="one protocol",
+        accent=True, font=MONO, size=22)
+    for i, (name, sub) in enumerate([("MockBankRepository", "demo data, the default"),
+                                     ("SurrealBankRepository", "URLSession, real database")]):
+        x = I(1.45) + i * I(5.65)
+        box(s, x, TOP + I(3.25), I(4.8), I(1.3), name, sub=sub, font=MONO, size=22)
+        arrow(s, I(6.65), TOP + I(2.55), x + I(2.4), TOP + I(3.25))
+
+    # ------------------------------------------------------------------ Jorge
+    s = frame(prs, next(num), "What SurrealDB is", "NoSQL, multi-model. Looks like SQL, has no JOINs",
               notes="""
 JORGE. SurrealDB is a NoSQL, multi-model database. One engine, one query language called
 SurrealQL, and one transaction cover three ways of storing data. Documents: a customer
@@ -111,8 +136,28 @@ records link to each other by ID, there are no JOINs.""")
         box(s, x, TOP + I(2.4), I(3.1), I(1.5), name, sub=sub, size=24)
         arrow(s, I(6.65), TOP + I(1.25), x + I(1.55), TOP + I(2.4))
 
-    # 4 ---------------------------------------------------------------- Jorge
-    s = frame(prs, 4, "Why a bank needs it", "Typical fits: fraud and risk, social data, access control",
+    # ------------------------------------------------------------------ Jorge
+    s = frame(prs, next(num), "One engine instead of several",
+              "Ledger, graph and permissions in one transaction", notes="""
+JORGE. A common way to build this is with several pieces: an application server between
+the app and the database, a database for the money, and for fraud a separate graph
+database, fed by an ETL process. Two systems can diverge, and sign-in and permissions end
+up written in two places. In SurrealDB the ledger, the transfer graph and
+the permissions live in one database and commit in one transaction. A transfer writes the
+accounting entries and the graph edge together. And the same path, from a customer
+through owns to an account, decides what you can see and feeds the fraud detectors.""")
+    for i, (head, items, acc) in enumerate([
+            ("Separate systems", ["An application server in front", "A database for the money",
+                                  "A graph database fed by ETL"], False),
+            ("One engine", ["API inside the database", "Ledger and graph, one transaction",
+                            "Permissions are graph paths"], True)]):
+        x = MARGIN + I(0.3) + i * I(6.1)
+        box(s, x, TOP + I(0.2), I(5.6), I(0.85), head, accent=acc, size=24)
+        for j, item in enumerate(items):
+            box(s, x, TOP + I(1.35) + j * I(1.05), I(5.6), I(0.85), item, size=20)
+
+    # ------------------------------------------------------------------ Jorge
+    s = frame(prs, next(num), "Why a bank needs it", "Typical fits: fraud and risk, social data, access control",
               notes="""
 JORGE. Why this database for a bank? A bank needs three things at once. Money that
 never goes out of balance: that needs transactions over several records. Fraud is a
@@ -121,8 +166,9 @@ so each customer must only see their own records, and some fields like the card 
 only after a PIN. Of the engines we compared, SurrealDB is the one that gives all three
 in one place.
 Typical scenarios for it: fraud and risk analysis, social and recommendation data,
-access-control models that are graphs. Now Xabier will show you the whole system, from
-the phone to the disk.""")
+access-control models that are graphs, and small or medium applications that want the
+API, sign-in and real-time updates inside the database. Now Xabier will show you the
+whole system, from the phone to the disk.""")
     rows = [("Money never out of balance", "Multi-record ACID", False),
             ("Fraud is a graph", "Native graph", True),
             ("Sensitive data", "Per-record, per-field permissions", False)]
@@ -132,8 +178,8 @@ the phone to the disk.""")
         arrow(s, I(5.8), y + I(0.575), I(7.4), y + I(0.575))
         box(s, I(7.4), y, I(4.7), I(1.15), cap, accent=acc, size=22)
 
-    # 5 ---------------------------------------------------------------- Xabier
-    s = frame(prs, 5, "The path of a request", "One address for the app. No backend in between", notes="""
+    # ------------------------------------------------------------------ Xabier
+    s = frame(prs, next(num), "The path of a request", "One address for the app. No backend in between", notes="""
 XABIER. This is the whole system, and the path of one request through it. The iPhone app
 talks to one address: HAProxy, our load balancer. Step 1, sign in: the app gets a token
 that carries only that customer's permissions, never database credentials. Step 2, read:
@@ -166,8 +212,8 @@ that is what makes the load balancer possible.""")
         text(s, x + I(0.4), y0 + I(3.0), I(2.05), I(0.45), what, size=18, font=MONO)
         text(s, x + I(0.4), y0 + I(3.45), I(2.05), I(0.45), sub, size=18, color=MUTED)
 
-    # 6 ---------------------------------------------------------------- Xabier
-    s = frame(prs, 6, "Why a load balancer", "Check the node, not what every node shares", notes="""
+    # ------------------------------------------------------------------ Xabier
+    s = frame(prs, next(num), "Why a load balancer", "Check the node, not what every node shares", notes="""
 XABIER. Why a load balancer? Because the SurrealDB nodes are stateless: without one, the
 app would need the list of nodes and its own failover. With HAProxy the app has one
 address, the load is spread, and a dead node is taken out before the app notices. We chose
@@ -185,8 +231,8 @@ balancer at all. Checking only the node itself: 6 and 7, all from the storage el
         ["TiKV leader killed, health check /status", "6 and 7 of 40"],
     ], size=22, first_col_bold=False, highlight_row=1)
 
-    # 7 ----------------------------------------------------------------- Xabier
-    s = frame(prs, 7, "One record, two models", "The role lives on the edge, not in a join table",
+    # ------------------------------------------------------------------ Xabier
+    s = frame(prs, next(num), "One record, two models", "The role lives on the edge, not in a join table",
               notes="""
 XABIER. Here is the data model in one query. Ana's account is a document. Who owns it is
 a graph: the edge "owns" goes from customer to account, and it carries a field, the role.
@@ -208,8 +254,8 @@ details.""")
     box(s, I(8.7), TOP + I(2.0), I(3.2), I(2.45), "account:ana", sub="document", accent=True,
         font=MONO, size=22)
 
-    # 8 ----------------------------------------------------------------- Xabier
-    s = frame(prs, 8, "Consistency under a race", "10 simultaneous full-balance transfers, 20 rounds",
+    # ------------------------------------------------------------------ Xabier
+    s = frame(prs, next(num), "Consistency under a race", "10 simultaneous full-balance transfers, 20 rounds",
               notes="""
 XABIER. Consistency. Our first design was a pure ledger: the balance is the sum of the
 entries. We fired ten transfers of the whole balance at the same time, twenty rounds.
@@ -221,8 +267,8 @@ two transactions is undone entirely. Result: zero overdrafts, every time. We onl
 this by testing it.""")
     picture(s, g["race"])
 
-    # 9 ----------------------------------------------------------------- Xabier
-    s = frame(prs, 9, "Compute apart from storage", "3 copies, Raft majority 2 of 3: CP", notes="""
+    # ------------------------------------------------------------------ Xabier
+    s = frame(prs, next(num), "Compute apart from storage", "3 copies, Raft majority 2 of 3: CP", notes="""
 XABIER. Architecture. SurrealDB separates compute from storage. The same binary runs on
 memory, on disk, or on TiKV, a distributed key-value store. With TiKV, SurrealDB nodes
 are stateless: any node serves any request. TiKV splits the data in ranges called
@@ -245,8 +291,8 @@ We built this cluster, and in the video you will see us break it.""")
     text(s, I(2.45), kv_y + I(1.05), I(2.5), I(0.4), "leader", size=18, color=LILAC,
          align=PP_ALIGN.CENTER)
 
-    # 10 --------------------------------------------------------------- Xabier
-    s = frame(prs, 10, "How it scales", "Scale compute and storage separately", notes="""
+    # ------------------------------------------------------------------ Xabier
+    s = frame(prs, next(num), "How it scales", "Scale compute and storage separately", notes="""
 XABIER. How this grows. Compute and storage scale separately. More users: add SurrealDB
 nodes behind HAProxy; they keep no state, so a new node serves traffic as soon as it
 passes the health check. More data: add TiKV nodes; the data is split in ranges called
@@ -264,8 +310,8 @@ On a laptop this shows the mechanism; throughput across machines we did not meas
         box(s, x, TOP + I(1.65), I(3.7), I(1.1), line1, size=20)
         box(s, x, TOP + I(3.0), I(3.7), I(1.1), line2, size=18, font=MONO)
 
-    # 11 ---------------------------------------------------------------- Xabier
-    s = frame(prs, 11, "Install, access, query", "HTTP, WebSocket, Surrealist, Python SDK", notes="""
+    # ------------------------------------------------------------------ Xabier
+    s = frame(prs, next(num), "Install, access, query", "HTTP, WebSocket, Surrealist, Python SDK", notes="""
 XABIER. Installing it is one command; we pin version 3.2.4 because 3.3 changes features
 we depend on. Our demo script starts the database on disk and loads three databases in
 about a minute, and the six test suites run in fifteen seconds. You talk to it over HTTP
@@ -274,8 +320,8 @@ the official GUI, and from Python with the official SDK. Everything is in the pu
 repo, step by step, so another student can reproduce it.""")
     picture(s, g["install"])
 
-    # 12 --------------------------------------------------------------- Xabier
-    s = frame(prs, 12, "The system under attack", "Recorded on this laptop, nothing staged", notes="""
+    # ------------------------------------------------------------------ Xabier
+    s = frame(prs, next(num), "The system under attack", "Recorded on this laptop, nothing staged", notes="""
 XABIER (video, 4 minutes 40; narrate over it).
 1. Surrealist, live alerts: a mule ring forms, six alerts arrive on their own, the ring is
    frozen in proportion, Marta tries to erase the trail and cannot.
@@ -299,8 +345,33 @@ XABIER (video, 4 minutes 40; narrate over it).
                      ("kill a TiKV", "nothing lost"),
                      ("Python SDK", "insert, query, update, delete")])
 
-    # 13 ---------------------------------------------------------------- Xabier
-    s = frame(prs, 13, "Tested on data we did not make", "Calibrated on one set, validated untouched on another",
+    # ------------------------------------------------------------------ Xabier
+    s = frame(prs, next(num), "The model, a race and real data", "Recorded on this laptop, part two", notes="""
+XABIER (video 2, 5 minutes 17; narrate over it).
+5. The model in Surrealist: customers are documents, owns is an edge with the role on it,
+   the Designer, one query in each direction, and the mule ring as a graph.
+6. Concurrency: ten clients send the whole balance at once, twenty rounds. The real
+   transfer function never overdraws; the unsafe one did in 13 of 20.
+7. Permissions: the script signs in as Ana and Luis, never as root, and every attack is
+   refused.
+8. IBM's dataset: the sample loads in about a second, the sweep flags 20 accounts in
+   strict rings, and IBM's own labels confirm that all of them launder.""")
+    video = HERE / "assets" / "video" / "demo2.mp4"
+    if video.exists():
+        poster = HERE / "assets" / "video" / "poster2.png"
+        vh = BOTTOM - TOP
+        vw = int(vh * 16 / 9)
+        s.shapes.add_movie(str(video), int((W - vw) / 2), TOP, vw, vh,
+                           poster_frame_image=str(poster) if poster.exists() else None,
+                           mime_type="video/mp4")
+    else:
+        commands(s, [("the model", "documents and edges"),
+                     ("demo.sh race", "0 of 20 overdrafts"),
+                     ("demo.sh access", "every attack refused"),
+                     ("demo.sh aml", "20 rings, all labelled")])
+
+    # ------------------------------------------------------------------ Xabier
+    s = frame(prs, next(num), "Tested on data we did not make", "Calibrated on one set, validated untouched on another",
               notes="""
 XABIER. The ring in the demo we planted ourselves, so it can only confirm our own design.
 So we ran the detector on IBM's public anti-money-laundering dataset, where the answer
@@ -312,8 +383,8 @@ eight, so two tiers: strict rings freeze, wide ones go to an analyst. And a chea
 filter first: 4.5 million transfers down to 381, without losing a single ring.""")
     picture(s, g["ibm"])
 
-    # 14 --------------------------------------------------------------- Xabier
-    s = frame(prs, 14, "What the cluster gives, what it costs",
+    # ------------------------------------------------------------------ Xabier
+    s = frame(prs, next(num), "What the cluster gives, what it costs",
               "The cluster proves failover. Time travel needs one node", notes="""
 XABIER. What we measured. Killing a follower: nothing visible. Killing the leader of the
 region being written: 9 to 12 seconds of errors, and not one write lost or half applied.
@@ -331,26 +402,48 @@ node, and the cluster proves the failover. Javier will now step back and judge t
         ["5 of 6 test suites pass", "One laptop: mechanics, not speed"],
     ], size=20, first_col_bold=False)
 
-    # 15 --------------------------------------------------------------- Javier
-    s = frame(prs, 15, "Don't trust the tool, test it", "74 of 74 deliberate breaks caught", notes="""
+    # ------------------------------------------------------------------ Javier
+    s = frame(prs, next(num), "Don't trust the tool, test it", "74 of 74 deliberate breaks caught", notes="""
 JAVIER. Now a critical look. Our main method: a test you have never seen fail is not
 watching anything. So every protection was broken on purpose, and its test had to
 catch it: 74 of 74 caught. Testing like this found real problems in SurrealDB: a
 time-travel bug that brought deleted records back, which could produce false evidence
 against an innocent; live notifications lost silently when two clients listen; and a
 query planner that ignored our index, 72 milliseconds against 1.2. Every one became a
-design decision. SurrealDB is powerful, but young.""")
+design decision. SurrealDB is powerful, but young. The red teams also found weak tests:
+some passed with the bug still in place, and some crashed instead of failing.""")
     picture(s, g["redteam"])
 
-    # 16 --------------------------------------------------------------- Javier
-    s = frame(prs, 16, "Against the alternatives", "From the documentation. Speed not measured",
+    # ------------------------------------------------------------------ Javier
+    s = frame(prs, next(num), "Lessons from building it",
+              "Found by running, measuring or breaking it", notes="""
+JAVIER. Building the project taught us some lessons about the engine. Functions were renamed between
+3.x versions, so we pinned 3.2.4 and test everything on it. The time-travel bug only
+appears on the disk engine, SurrealKV. In memory, that red team caught only 6 of 10
+breaks, so our tests run on SurrealKV, where it catches 10 of 10. A write conflict comes
+back as HTTP 400, which looks like a client error. Our client recognises it and retries
+with the same order id. And a .map that ran a query for every item grew quadratically:
+the IBM ring sweep took 54 seconds. Rewritten with SELECT VALUE, it takes one second.""")
+    grid(s, MARGIN + I(0.3), TOP + I(0.2), [I(5.8), I(5.8)], I(0.9), [
+        ["What we found", "How we handled it"],
+        ["Renames between 3.x versions", "Pinned 3.2.4, tested on it"],
+        ["Time-travel bug only on disk", "Tests on SurrealKV: 10 of 10, not 6"],
+        ["Write conflict as HTTP 400", "Retry with the same order id"],
+        ["IBM ring sweep: 54 s", "SELECT VALUE: 1.0 s"],
+    ], size=20, first_col_bold=False)
+
+    # ------------------------------------------------------------------ Javier
+    s = frame(prs, next(num), "Against the alternatives", "From the documentation. Speed not measured",
               notes="""
 JAVIER. How it compares, from each vendor's documentation, not measured: we do not claim
 it is faster than any of them. MongoDB also has multi-document transactions; what
 separates them is the graph, limited to 100 MB, and permissions per field only through
 views. Cassandra keeps transactions inside one partition. Neo4j is the strongest graph,
 but property permissions are Enterprise only. ArangoDB was the serious alternative,
-rejected for permissions. PostgreSQL is not NoSQL, which the course requires.
+rejected for permissions. PostgreSQL is not NoSQL, which the course requires, but it is
+still the fair comparison. It is far more mature: SELECT FOR UPDATE, serializable
+isolation, row-level security and decades of tooling. With it we would lose the graph
+shared by permissions and fraud detection, the API inside the database, and time travel.
 SurrealDB is the only one of these with queries into the past inside the language.""")
     grid(s, MARGIN, TOP + I(0.05), [I(2.35), I(2.4), I(2.4), I(2.5), I(2.45)], I(0.74), [
         ["", "Transactions", "Graph", "Field permissions", "Query the past"],
@@ -362,8 +455,8 @@ SurrealDB is the only one of these with queries into the past inside the languag
         ["SurrealDB", "multi-record", "native", "per field", "VERSION, beta"],
     ], size=18, highlight_row=6)
 
-    # 17 --------------------------------------------------------------- Javier
-    s = frame(prs, 17, "Where SurrealDB fits", "Strengths we measured, limits we hit", notes="""
+    # ------------------------------------------------------------------ Javier
+    s = frame(prs, next(num), "Where SurrealDB fits", "Strengths we measured, limits we hit", notes="""
 JAVIER. So, when would we use it? When documents, a graph and fine-grained permissions
 meet, like fraud, risk or access control; for small and medium systems where a small
 team benefits from having the API, authentication and real-time updates inside the
@@ -381,8 +474,28 @@ still be copied out to write-once storage.""")
         for j, item in enumerate(items):
             box(s, x, TOP + I(1.35) + j * I(1.05), I(5.6), I(0.85), item, size=20)
 
-    # 18 --------------------------------------------------------------- Javier
-    s = frame(prs, 18, None, notes="""
+    # ------------------------------------------------------------------ Javier
+    s = frame(prs, next(num), "What we would do next", "What we would change, what is still missing",
+              notes="""
+JAVIER. If we started again, we would test as an app user and on the real engine from day
+one, as our final test suites do. We would also measure every engine feature before
+building on it. For production, apps should not send free queries: permissions limit what
+a customer sees, not the CPU a query costs. Then the next steps. A write-once copy of the audit log,
+because the law asks for five to ten years and versioning keeps 30 days. A limit on
+password attempts: today only the PIN locks, after three failures. And a measured
+comparison of our ring detector against a recursive query in PostgreSQL.""")
+    for i, (head, items, acc) in enumerate([
+            ("Do differently", ["Test as an app user from day one",
+                                "Measure each feature first", "No free queries from apps"], True),
+            ("Next steps", ["Write-once copy of the audit log", "Limit on login attempts",
+                            "Ring detector against PostgreSQL"], False)]):
+        x = MARGIN + I(0.3) + i * I(6.1)
+        box(s, x, TOP + I(0.2), I(5.6), I(0.85), head, accent=acc, size=24)
+        for j, item in enumerate(items):
+            box(s, x, TOP + I(1.35) + j * I(1.05), I(5.6), I(0.85), item, size=20)
+
+    # ------------------------------------------------------------------ Javier
+    s = frame(prs, next(num), None, notes="""
 JAVIER. To finish: every number you saw is in the public repository, with the steps to
 reproduce it. The code was written with AI help; what we did was decide what to build,
 measure it, and break it on purpose. Thank you. Questions?""")
