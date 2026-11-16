@@ -346,6 +346,31 @@ XABIER (video, 4 minutes 40; narrate over it).
                      ("Python SDK", "insert, query, update, delete")])
 
     # ------------------------------------------------------------------ Xabier
+    s = frame(prs, next(num), "The model, a race and real data", "Recorded on this laptop, part two", notes="""
+XABIER (video 2, 5 minutes 17; narrate over it).
+5. The model in Surrealist: customers are documents, owns is an edge with the role on it,
+   the Designer, one query in each direction, and the mule ring as a graph.
+6. Concurrency: ten clients send the whole balance at once, twenty rounds. The real
+   transfer function never overdraws; the unsafe one did in 13 of 20.
+7. Permissions: the script signs in as Ana and Luis, never as root, and every attack is
+   refused.
+8. IBM's dataset: the sample loads in about a second, the sweep flags 20 accounts in
+   strict rings, and IBM's own labels confirm that all of them launder.""")
+    video = HERE / "assets" / "video" / "demo2.mp4"
+    if video.exists():
+        poster = HERE / "assets" / "video" / "poster2.png"
+        vh = BOTTOM - TOP
+        vw = int(vh * 16 / 9)
+        s.shapes.add_movie(str(video), int((W - vw) / 2), TOP, vw, vh,
+                           poster_frame_image=str(poster) if poster.exists() else None,
+                           mime_type="video/mp4")
+    else:
+        commands(s, [("the model", "documents and edges"),
+                     ("demo.sh race", "0 of 20 overdrafts"),
+                     ("demo.sh access", "every attack refused"),
+                     ("demo.sh aml", "20 rings, all labelled")])
+
+    # ------------------------------------------------------------------ Xabier
     s = frame(prs, next(num), "Tested on data we did not make", "Calibrated on one set, validated untouched on another",
               notes="""
 XABIER. The ring in the demo we planted ourselves, so it can only confirm our own design.

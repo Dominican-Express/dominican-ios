@@ -10,9 +10,11 @@ one node or on a three-store TiKV cluster.
 
 ![A mule ring forms and six fraud alerts arrive on their own in Surrealist, over a live query](docs/demo.gif)
 
-[Watch the full demo](presentation/assets/video/demo.mp4) (4:40, with live alerts, a node and a
-storage leader killed during payments, and the Python SDK) and the
-[slides](presentation/dominican-express.pptx).
+The demo is two videos: [part one](presentation/assets/video/demo.mp4) (4:40, with live alerts, a
+node and a storage leader killed during payments, and the Python SDK) and
+[part two](presentation/assets/video/demo2.mp4) (5:17, with the data model, a concurrency race,
+permissions and IBM's dataset). The slides are in
+[presentation/dominican-express.pptx](presentation/dominican-express.pptx).
 
 ## The path of a request
 
