@@ -200,8 +200,12 @@ def main():
     sql("UPDATE aml_truth SET src = type::record('account', src), dst = type::record('account', dst), "
         "transfer = type::record('transfer', transfer) WHERE type::is_string(src);", a.db)
     dt = time.time() - t2
-    print(f"{loaded} transferencias en {dt:.0f} s ({loaded / dt:.0f}/s); "
-          f"blanqueo {laund} (en patrones {in_pat}, {len(pats)} filas de patrones)")
+    if os.environ.get("DEMO_LANG") == "en":  # `demo.sh aml`, para presentar en inglés
+        print(f"{loaded} transfers in {dt:.0f} s ({loaded / dt:.0f}/s); "
+              f"labelled laundering {laund} (in patterns {in_pat}, {len(pats)} pattern rows)")
+    else:
+        print(f"{loaded} transferencias en {dt:.0f} s ({loaded / dt:.0f}/s); "
+              f"blanqueo {laund} (en patrones {in_pat}, {len(pats)} filas de patrones)")
 
 
 if __name__ == "__main__":

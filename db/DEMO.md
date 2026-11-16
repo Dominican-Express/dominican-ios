@@ -227,7 +227,7 @@ everything.
 
 ```sh
 ./db/demo/demo.sh aml
-# 20874 transferencias en 1 s (29518/s); blanqueo 3208 (...)      (loader summary, in Spanish)
+# 20874 transfers in 1 s (29518/s); labelled laundering 3208 (...)   (loader summary)
 # aml: IBM sample loaded and swept (expected: 20 mule_ring, 191 possible_ring)
 ```
 

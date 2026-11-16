@@ -95,7 +95,7 @@ case "$1" in
     ;;
   aml)
     # Muestra del dataset de IBM (DATASET.md): base `aml`, solo núcleo, grafo y detectores.
-    SURREAL_URL=$URL python3 aml_load.py --data ../data/ibm-aml --set HI-Small-sample --db aml | tail -1
+    SURREAL_URL=$URL DEMO_LANG=en python3 aml_load.py --data ../data/ibm-aml --set HI-Small-sample --db aml | tail -1
     curl -s -X POST "$URL/sql" -u root:root -H "Accept: application/json" -H "surreal-ns: dx" -H "surreal-db: aml" \
          --data-binary "RETURN fn::detect_rings_between(d'2022-08-31T00:00:00Z', d'2022-09-20T00:00:00Z', 12);" > /dev/null
     echo "aml: IBM sample loaded and swept (expected: 20 mule_ring, 191 possible_ring)"
