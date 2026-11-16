@@ -9,6 +9,7 @@ permiso tiene su caso positivo, su caso negativo y su ataque.
 
 Requiere haber cargado 01_seed.surql. No modifica datos de negocio.
 """
+import os
 import sys
 import time
 
@@ -16,10 +17,45 @@ from session import api, last, root_last, signin
 
 FAILS = []
 
+# DEMO_LANG=en para presentar en inglés (lo usa `demo.sh access`).
+EN = {
+    "ana — titular de account:ana (conjunta con luis), lleva card:ana":
+        "ana: holder of account:ana (joint with luis), carries card:ana",
+    "ve su tarjeta, pero sin PAN ni CVV": "sees her card, but no card number or CVV",
+    "PIN incorrecto: la verificación se rechaza": "wrong PIN: verification refused",
+    "…y el PAN sigue oculto": "and the card number stays hidden",
+    "PIN correcto: la verificación se acepta": "right PIN: verification accepted",
+    "ahora ve PAN y CVV": "now she sees card number and CVV",
+    "el PIN se guarda solo como hash argon2, nunca en claro": "the PIN is stored only as an argon2 hash, never in clear",
+    "no puede leer su propio hash de contraseña": "cannot read her own password hash",
+    "no puede leer su propio hash de PIN": "cannot read her own PIN hash",
+    "ana — ataques": "ana: attacks",
+    "no puede alargarse la ventana a mano": "cannot extend her PIN window by hand",
+    "no puede cambiarse de titular para ver otra cuenta": "cannot change her customer to see another account",
+    "no ve cuentas ajenas": "does not see other people's accounts",
+    "no puede pedir la verificación de otro usuario": "cannot verify the PIN of another user",
+    "luis — cotitular de account:ana; lleva card:luis, NO card:ana":
+        "luis: co-holder of account:ana; carries card:luis, NOT card:ana",
+    "ve la cuenta conjunta y la suya, nada más": "sees the joint account and his own, nothing else",
+    "ve que existe la tarjeta de la cuenta conjunta": "sees that the joint account has a card",
+    "verificado, sigue SIN ver el PAN de la tarjeta de ana": "after his PIN, still NO card number for ana's card",
+    "…pero sí el de la suya": "but he does see his own",
+    "alertas — cada titular ve las suyas y solo las suyas": "alerts: each holder sees their own, and only their own",
+    "ana ve la alerta de viaje imposible de su tarjeta": "ana sees the impossible travel alert on her card",
+    "ana no ve alertas de cuentas ajenas": "ana does not see alerts on other accounts",
+    "caducidad — esperando 91 s": "expiry: waiting 91 s",
+    "pasada la ventana, el PAN vuelve a ocultarse": "after the window, the card number is hidden again",
+    "TODO EN ORDEN": "ALL CORRECT",
+}
+
+
+def T(s):
+    return EN.get(s, s) if os.environ.get("DEMO_LANG") == "en" else s
+
 
 def check(name, cond, got):
     mark = "ok   " if cond else "FALLA"
-    print(f"  [{mark}] {name}")
+    print(f"  [{mark}] {T(name)}")
     if not cond:
         print(f"          obtenido: {got}")
         FAILS.append(name)
@@ -30,7 +66,7 @@ def card(token, card_id):
     return rows[0] if isinstance(rows, list) and rows else rows
 
 
-print("ana — titular de account:ana (conjunta con luis), lleva card:ana")
+print("" + T("ana — titular de account:ana (conjunta con luis), lleva card:ana"))
 ana = signin("ana@dominican.test", "demo-ana")
 
 c = card(ana, "card:ana")
@@ -54,7 +90,7 @@ u = last(ana, "SELECT * FROM app_user:ana;")[0]
 check("no puede leer su propio hash de contraseña", "pass" not in u, u)
 check("no puede leer su propio hash de PIN", "pin" not in u, u)
 
-print("\nana — ataques")
+print("\n" + T("ana — ataques"))
 last(ana, "UPDATE app_user:ana SET verified_until = d'3000-01-01T00:00:00Z';")
 u = last(ana, "SELECT verified_until FROM app_user:ana;")[0]
 check("no puede alargarse la ventana a mano", not str(u.get("verified_until", "")).startswith("3000"), u)
@@ -73,7 +109,7 @@ api(ana, "/verify-pin", {"pin": "5678", "user": "app_user:luis"})
 r = root_last("SELECT VALUE verified_until FROM app_user:luis;")
 check("no puede pedir la verificación de otro usuario", r == [None], r)
 
-print("\nluis — cotitular de account:ana; lleva card:luis, NO card:ana")
+print("\n" + T("luis — cotitular de account:ana; lleva card:luis, NO card:ana"))
 luis = signin("luis@dominican.test", "demo-luis")
 
 r = last(luis, "SELECT VALUE id FROM account ORDER BY id;")
@@ -89,7 +125,7 @@ check("verificado, sigue SIN ver el PAN de la tarjeta de ana", c.get("pan") is N
 c = card(luis, "card:luis")
 check("…pero sí el de la suya", c.get("pan") == "4111111111111010", c)
 
-print("\nalertas — cada titular ve las suyas y solo las suyas")
+print("\n" + T("alertas — cada titular ve las suyas y solo las suyas"))
 # Se provoca un viaje imposible con la tarjeta de ana, como root (es el banco
 # quien registra el pago, no el cliente).
 root_last("""CREATE card_payment SET card = card:ana, amount = 10dec,
@@ -103,10 +139,10 @@ r = last(ana, "SELECT VALUE account FROM fraud_alert;")
 check("ana no ve alertas de cuentas ajenas", "account:marta" not in r, r)
 
 if "--expiry" in sys.argv:
-    print("\ncaducidad — esperando 91 s")
+    print("\n" + T("caducidad — esperando 91 s"))
     time.sleep(91)
     check("pasada la ventana, el PAN vuelve a ocultarse",
           card(ana, "card:ana").get("pan") is None, card(ana, "card:ana"))
 
-print(f"\n{'TODO EN ORDEN' if not FAILS else f'{len(FAILS)} FALLOS'}")
+print("\n" + (T("TODO EN ORDEN") if not FAILS else f"{len(FAILS)} FALLOS"))
 sys.exit(1 if FAILS else 0)

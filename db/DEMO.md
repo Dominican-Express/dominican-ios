@@ -175,7 +175,8 @@ every time.
 ```
 
 Signs in as Ana and Luis (record access) and tries to read what is not theirs.
-Output is in Spanish; every line must be `[ok   ]` and the last `TODO EN ORDEN`.
+Every line must be `[ok   ]` and the last `ALL CORRECT` (run `python3
+access_test.py` directly for the Spanish version the test suite uses).
 Examples: Ana does not see other accounts; Luis, co-holder of Ana's account,
 sees it but not Ana's card number, even after verifying his PIN.
 
@@ -226,7 +227,7 @@ everything.
 
 ```sh
 ./db/demo/demo.sh aml
-# 20874 transferencias en 1 s (29518/s); blanqueo 3208 (...)      (loader summary, in Spanish)
+# 20874 transfers in 1 s (29518/s); labelled laundering 3208 (...)   (loader summary)
 # aml: IBM sample loaded and swept (expected: 20 mule_ring, 191 possible_ring)
 ```
 
