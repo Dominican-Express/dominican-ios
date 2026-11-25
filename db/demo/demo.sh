@@ -80,7 +80,7 @@ kafkapid() {
 topics() {
   # 3 particiones: la clave (la cuenta) reparte los pagos y dos consumidores
   # del mismo grupo pueden trabajar a la vez.
-  for t in payments fraud-alerts; do
+  for t in payments fraud-alerts payments-dlq; do
     kt --create --if-not-exists --topic $t --partitions 3 --replication-factor 1 > /dev/null
   done
 }
@@ -222,6 +222,9 @@ case "$1" in
     ;;
   kafka-up)
     if kafkapid > /dev/null; then echo "kafka already running"; exit 0; fi
+    if nc -z 127.0.0.1 9092 2> /dev/null; then
+      echo "port 9092 is busy with another process; stop it first"; exit 1
+    fi
     if [[ ! -x "$KAFKA_HOME/bin/kafka-server-start.sh" ]]; then
       echo "first start: downloading Kafka $KAFKA_VER (~120 MB)…"
       tgz="${KAFKA_HOME:h}/kafka.tgz"
@@ -242,17 +245,21 @@ case "$1" in
     KAFKA_HEAP_OPTS="-Xmx512m -Xms256m" nohup "$KAFKA_HOME/bin/kafka-server-start.sh" \
         "$KAFKA_DATA/server.properties" > "$KAFKA_DATA/kafka.log" 2>&1 &!
     echo $! > "$KAFKA_PID"
-    for i in {1..60}; do kt --list > /dev/null 2>&1 && break; sleep 1; done
-    kt --list > /dev/null 2>&1 || { echo "kafka did not start; see $KAFKA_DATA/kafka.log"; exit 1; }
+    for i in {1..60}; do kafkapid > /dev/null && kt --list > /dev/null 2>&1 && break; sleep 1; done
+    kafkapid > /dev/null && kt --list > /dev/null 2>&1 \
+      || { echo "kafka did not start; see $KAFKA_DATA/kafka.log"; exit 1; }
     topics
-    echo "kafka on 127.0.0.1:9092, topics payments and fraud-alerts (3 partitions each)"
+    echo "kafka on 127.0.0.1:9092, topics payments, fraud-alerts and payments-dlq (3 partitions each)"
     echo "remember: ./db/demo/demo.sh kafka-down when you finish"
     ;;
   kafka-down)
     pid=$(kafkapid) || pid=""
     if [[ -n "$pid" ]]; then
       kill "$pid"
-      for i in {1..40}; do ps -p "$pid" > /dev/null || break; sleep 0.25; done
+      for i in {1..80}; do ps -p "$pid" > /dev/null || break; sleep 0.25; done
+      if ps -p "$pid" > /dev/null; then
+        echo "kafka (PID $pid) is still stopping; run kafka-down again in a moment"; exit 1
+      fi
     fi
     rm -rf "$KAFKA_DATA"
     echo "kafka stopped, messages deleted"
@@ -260,13 +267,20 @@ case "$1" in
   stream-reset)
     # Base y topics nuevos: un mensaje que se quedó en el topic de una prueba
     # anterior se volvería a aplicar al arrancar el consumidor.
+    kt --list > /dev/null 2>&1 || { echo "kafka is not running: ./db/demo/demo.sh kafka-up"; exit 1; }
     curl -s -X POST "$URL/sql" -u root:root -H "surreal-ns: dx" \
          --data-binary "REMOVE DATABASE IF EXISTS stream;" > /dev/null
     SURREAL_URL=$URL SURREAL_DB=stream ./apply.sh > /dev/null
     SURREAL_URL=$URL SURREAL_DB=stream ./surql.sh 01_seed.surql > /dev/null
-    kt --delete --if-exists --topic payments > /dev/null 2>&1 || true
-    kt --delete --if-exists --topic fraud-alerts > /dev/null 2>&1 || true
-    sleep 2
+    for t in payments fraud-alerts payments-dlq; do
+      kt --delete --if-exists --topic $t > /dev/null 2>&1 || true
+    done
+    # El borrado de un topic termina después de que responda el comando: si
+    # se crea antes, --if-not-exists no hace nada y el topic desaparece luego.
+    for i in {1..30}; do
+      kt --list 2> /dev/null | grep -qxE 'payments|fraud-alerts|payments-dlq' || break
+      sleep 0.5
+    done
     topics
     echo "stream: 5 customers, empty topics"
     ;;
@@ -274,7 +288,8 @@ case "$1" in
     SURREAL_URL=$URL exec uv run -q --with confluent-kafka python3 stream_consumer.py --sweep 2
     ;;
   stream-bridge)
-    exec uv run -q --with confluent-kafka --with websockets python3 alert_bridge.py
+    SURREAL_WS=${SURREAL_WS:-ws://${URL#http://}/rpc} \
+      exec uv run -q --with confluent-kafka --with websockets python3 alert_bridge.py
     ;;
   stream-alerts)
     exec uv run -q --with confluent-kafka python3 alert_feed.py

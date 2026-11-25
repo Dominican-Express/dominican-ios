@@ -17,6 +17,11 @@ Dos modos MALOS, para que la prueba (stream_test.py) tenga algo que detectar:
 --crash-after N simula ese fallo: el proceso muere en el mensaje N, en el
 peor momento de cada modo.
 
+Un mensaje que no se puede leer (no es JSON, le falta un campo, importe mal
+escrito) va al topic `payments-dlq` con el motivo en una cabecera, se confirma
+y se sigue: sin eso, al arrancar otra vez Kafka lo devolvería y el consumidor
+se pararía en él para siempre, con toda la partición detrás.
+
 --sweep S lanza el barrido de anillos (fn::detect_rings) cada S segundos. Es
 idempotente (INSERT IGNORE): repetirlo no duplica alertas. Los detectores en
 línea (ráfaga, viaje imposible) ya saltan dentro de cada pago.
@@ -31,10 +36,10 @@ import os
 import sys
 import time
 
-from confluent_kafka import Consumer, KafkaError
+from confluent_kafka import Consumer, KafkaError, Producer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from stream_common import KAFKA, PAYMENTS, Surreal, acc, money  # noqa: E402
+from stream_common import DLQ, KAFKA, PAYMENTS, Surreal, acc, money, parse  # noqa: E402
 
 
 def apply(db, mode, m, source):
@@ -79,6 +84,7 @@ def main():
     # no por eso el topic está vacío.
     assigned = []
     c.subscribe([a.topic], on_assign=lambda _c, parts: assigned.append(time.time()))
+    dlq = Producer({"bootstrap.servers": KAFKA, "acks": "all", "enable.idempotence": True})
     log = (lambda *_: None) if a.quiet else (lambda s: print(s, flush=True))
     log(f"consuming {a.topic} as group {a.group} ({a.mode}); Ctrl-C to stop")
 
@@ -99,13 +105,28 @@ def main():
                     break
                 continue
             if msg.error():
-                if msg.error().code() != KafkaError._PARTITION_EOF:
+                # Solo los errores fatales paran el consumidor; los demás
+                # (broker caído un momento, topic que aún no existe) los
+                # reintenta la propia librería.
+                if msg.error().fatal():
                     raise RuntimeError(msg.error())
+                if msg.error().code() != KafkaError._PARTITION_EOF:
+                    log(f"      kafka: {msg.error().str()}")
                 continue
             idle_since = now
             seen += 1
             source = f"{msg.topic()}/{msg.partition()}@{msg.offset()}"
-            m = json.loads(msg.value())
+            try:
+                m = parse(msg.value())
+            except ValueError as e:
+                dlq.produce(DLQ, key=msg.key(), value=msg.value(),
+                            headers={"reason": str(e), "source": source})
+                # Sin la copia en la cola no se confirma: el mensaje se perdería.
+                if dlq.flush(10):
+                    raise RuntimeError(f"could not write to {DLQ}")
+                c.commit(message=msg, asynchronous=False)
+                log(f"p{msg.partition()}@{msg.offset():<4} malformed ({e}), sent to {DLQ}")
+                continue
 
             if a.mode == "commit-first":
                 c.commit(message=msg, asynchronous=False)

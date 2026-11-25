@@ -542,10 +542,13 @@ losses and the one-node limit above).
 **Evidence.** `demo.sh stream-test`: 60 payments, the consumer killed at
 message 25. Paying, recording the message id and then committing: 60 of 60.
 Without recording the id: 61. Committing before paying: 59. Total balance
-unchanged and `fn::reconcile()` empty in all three. Broker memory: about
-340 MB. Throughput: not measured.
+unchanged and `fn::reconcile()` empty in all three; 2 malformed messages sent
+to `payments-dlq` instead of stopping the consumer. 8 copies of one message at
+once: paid once. Broker memory: about 340 MB. Throughput: not measured.
 
 **Consequences and costs.** One more process with a JVM. A single broker keeps
-one copy of each partition, so Kafka's own fault tolerance is not shown. The
+one copy of each partition, so Kafka's own fault tolerance is not shown and
+`acks=all` waits for that one broker only. A rejected message stays rejected
+for its id; retrying means a new message. The
 ring sweep runs every 2 s from the consumer, not per message. Alerts can reach
 the topic twice after a bridge restart; dashboards drop repeated ids.

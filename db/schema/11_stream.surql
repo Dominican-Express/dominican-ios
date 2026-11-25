@@ -23,18 +23,27 @@ DEFINE FIELD OVERWRITE txn    ON stream_msg TYPE option<record<txn>>;
 -- De dónde salió la copia que se aplicó: topic/partición@offset. Sirve para
 -- auditar y para ver en la prueba qué copia ganó.
 DEFINE FIELD OVERWRITE source ON stream_msg TYPE string;
+-- Huella del contenido. Una copia repetida trae la misma; un mensaje DISTINTO
+-- con un id ya usado trae otra, y no debe darse por repetido en silencio.
+DEFINE FIELD OVERWRITE digest ON stream_msg TYPE string;
 DEFINE FIELD OVERWRITE at     ON stream_msg TYPE datetime VALUE time::now() READONLY;
 
 -- Aplica un mensaje. Devuelve { status, reason, duplicate }.
 -- Los rechazos se GUARDAN y no se lanzan: un THROW desharía también el apunte
 -- en stream_msg, y la copia repetida volvería a intentarlo. Por eso las
 -- comprobaciones se hacen antes de llamar a fn::transfer, como en
--- fn::place_order.
+-- fn::place_order. Un rechazo es definitivo para ese id, como un pago hecho:
+-- releer el topic no lo reintenta. Un pago que deba repetirse es un mensaje
+-- nuevo, con id nuevo.
 DEFINE FUNCTION OVERWRITE fn::stream_apply($key: string, $from: record<account>,
         $to: record<account>, $amount: decimal, $kind: string, $source: string) {
     LET $id = type::record('stream_msg', $key);
+    LET $digest = crypto::sha256(<string>[$from, $to, $amount, $kind]);
     LET $prev = (SELECT * FROM ONLY $id);
     IF $prev != NONE {
+        IF $prev.digest != $digest {
+            RETURN { status: 'rejected', reason: 'id_reused', duplicate: true };
+        };
         RETURN { status: $prev.status, reason: $prev.reason, duplicate: true };
     };
 
@@ -58,12 +67,12 @@ DEFINE FUNCTION OVERWRITE fn::stream_apply($key: string, $from: record<account>,
 
     IF $reason != NONE {
         CREATE $id SET status = 'rejected', reason = $reason, from = $from, to = $to,
-            amount = $amount, source = $source;
+            amount = $amount, source = $source, digest = $digest;
         RETURN { status: 'rejected', reason: $reason, duplicate: false };
     };
 
     LET $tx = fn::transfer($from, $to, $amount, $kind, NONE);
     CREATE $id SET status = 'done', from = $from, to = $to, amount = $amount,
-        txn = $tx, source = $source;
+        txn = $tx, source = $source, digest = $digest;
     RETURN { status: 'done', reason: NONE, duplicate: false };
 } PERMISSIONS NONE;

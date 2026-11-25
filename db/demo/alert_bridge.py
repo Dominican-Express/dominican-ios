@@ -41,27 +41,50 @@ def publish(producer, alert, how):
     print(f"  -> {alert.get('kind'):<14} {key}{how}", flush=True)
 
 
+def live_alert(msg):
+    """La alerta nueva si `msg` es una notificación en vivo de CREATE. Solo
+    CREATE: un DELETE al reiniciar la demo no es una alerta nueva."""
+    res = msg.get("result")
+    if msg.get("id") is None and isinstance(res, dict) and res.get("action") == "CREATE":
+        return res["result"]
+    return None
+
+
 async def bridge(url, producer):
     async with websockets.connect(url, subprotocols=["json"]) as ws:
-        for i, (method, params) in enumerate([
-                ("signin", [{"user": USER, "pass": PASS}]),
-                ("use", [NS, DB]),
-                ("query", ["LIVE SELECT * FROM fraud_alert;"]),
-                ("query", ["SELECT * FROM fraud_alert ORDER BY at;"])]):
-            await ws.send(json.dumps({"id": i + 1, "method": method, "params": params}))
+        counter = 0
+
+        async def call(method, params):
+            """Una petición y su respuesta, en orden: SurrealDB puede atender a
+            la vez varias peticiones del mismo WebSocket, y sin esperar, el
+            relleno podría ejecutarse antes de que el LIVE SELECT exista. Lo que
+            llegue en vivo mientras tanto se publica igual."""
+            nonlocal counter
+            counter += 1
+            await ws.send(json.dumps({"id": counter, "method": method, "params": params}))
+            async for raw in ws:
+                msg = json.loads(raw)
+                if (alert := live_alert(msg)) is not None:
+                    publish(producer, alert, "")
+                elif msg.get("id") == counter:
+                    if "error" in msg:
+                        raise RuntimeError(f"{method}: {msg['error']}")
+                    res = msg.get("result")
+                    if method == "query" and res[0]["status"] != "OK":
+                        raise RuntimeError(f"{params[0]} {res[0]['result']}")
+                    return res
+            raise RuntimeError("connection closed")
+
+        await call("signin", [{"user": USER, "pass": PASS}])
+        await call("use", [NS, DB])
+        await call("query", ["LIVE SELECT * FROM fraud_alert;"])
         print(f"bridging {url} {NS}/{DB} fraud_alert -> {ALERTS}", flush=True)
+        # El relleno, DESPUÉS de que el LIVE SELECT exista: lo ya guardado.
+        for alert in (await call("query", ["SELECT * FROM fraud_alert ORDER BY at;"]))[0]["result"]:
+            publish(producer, alert, "   (already stored)")
         async for raw in ws:
-            msg = json.loads(raw)
-            res = msg.get("result")
-            if msg.get("id") == 4:       # el relleno: lo que ya estaba guardado
-                for alert in res[0]["result"]:
-                    publish(producer, alert, "   (already stored)")
-                continue
-            # Solo las notificaciones en vivo traen 'action'. Solo CREATE: un
-            # DELETE al reiniciar la demo no es una alerta nueva.
-            if not isinstance(res, dict) or res.get("action") != "CREATE":
-                continue
-            publish(producer, res["result"], "")
+            if (alert := live_alert(json.loads(raw))) is not None:
+                publish(producer, alert, "")
 
 
 async def main():
