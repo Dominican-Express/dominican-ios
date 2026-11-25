@@ -57,6 +57,16 @@ dies, there are a few seconds of errors while Raft elects a new one, but no writ
 the final count is exactly the writes that answered OK. The health check asks `/status` rather than
 `/health`; with `/health`, a storage election took both nodes out and 22 of 40 writes failed.
 
+## Streaming with Kafka
+
+Payments from outside the app (card network, other banks) arrive on a Kafka
+topic keyed by account, and a consumer applies them in SurrealDB, recording
+each message id in the same transaction as the payment: a message delivered
+twice is paid once. Fraud alerts leave through a second topic, so every
+dashboard sees them whichever node raised them. We chose Kafka over Redis
+Streams because a payment that was accepted cannot be lost, and Kafka keeps
+it on disk where it can be read again ([db/STREAMING.md](db/STREAMING.md)).
+
 ## How results are verified
 
 ![Every suite also run against code broken on purpose: 74 of 74 breaks caught](docs/figures/redteam.png)
@@ -71,6 +81,7 @@ and every break is caught.
 | Prefilter | IBM's 4,487,133 transfers reduced to 381 without losing a ring |
 | Node A killed through HAProxy | 40 of 40 writes OK in three runs, slowest 52 ms |
 | TiKV leader killed | 5 to 7 writes fail, then OK again 9 to 13 s after the kill; nothing lost |
+| Kafka consumer killed mid-stream | 60 of 60 payments applied once; without the message id 61, committing first 59 |
 | Tests | 6 suites; 74 of 74 breaks caught |
 
 ## Usage
@@ -85,6 +96,7 @@ git clone https://github.com/Dominican-Express/dominican-ios.git && cd dominican
 ./db/demo/test_all.sh --quick     # the 6 test suites: expect ALL PASSED
 ./db/demo/demo.sh stage           # a clean bank for the live demo, then attack and coverup
 ./db/demo/demo.sh cluster-up      # HAProxy :8100, two SurrealDB nodes, PD, three TiKV
+./db/demo/demo.sh kafka-up        # Kafka :9092 for the streaming demo (db/STREAMING.md)
 ```
 
 Start with [db/README.md](db/README.md).
@@ -98,6 +110,7 @@ Start with [db/README.md](db/README.md).
 | [db/REFLECTION.md](db/REFLECTION.md) | Strengths, limitations, comparison |
 | [db/DATASET.md](db/DATASET.md) | The detector on IBM's AML dataset |
 | [db/CLUSTER.md](db/CLUSTER.md) | The cluster and the load balancer |
+| [db/STREAMING.md](db/STREAMING.md) | Kafka: payments in, fraud alerts out |
 | [db/APP_INTEGRATION.md](db/APP_INTEGRATION.md) | How the app talks to the database |
 
 ## The iOS app

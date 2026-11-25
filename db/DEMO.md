@@ -21,6 +21,7 @@ Surrealist: connection `ws://127.0.0.1:8099`, Root `root` / `root`, namespace `d
 | [F](#f-rings-at-scale-database-volume) | Graph detection on a generated bank | 2 min |
 | [G](#g-independent-data-database-aml) | The detector on IBM's public AML dataset | 2 min |
 | [H](#h-a-cluster-that-survives-a-dead-node-terminal) | 3 TiKV nodes: kill one during writes, bring it back | 3 min |
+| [I](#i-payments-in-and-alerts-out-through-kafka-terminals) | Kafka: payments in, a ring frozen, a duplicate not charged, alerts out | 2 min |
 
 ---
 
@@ -279,8 +280,35 @@ TiKV: [CLUSTER.md](CLUSTER.md).
 
 ---
 
+## I. Payments in and alerts out through Kafka (terminals)
+
+Needs Java 11 or newer once; the first `kafka-up` downloads Kafka 3.9.1
+(~120 MB). Full explanation and the Kafka against Redis Streams decision:
+[STREAMING.md](STREAMING.md).
+
+```sh
+./db/demo/demo.sh kafka-up        # Kafka on 127.0.0.1:9092 (about 20 s)
+./db/demo/demo.sh stream-reset    # database `stream` with the seed, empty topics
+./db/demo/demo.sh stream-consume  # terminal 1
+./db/demo/demo.sh stream-bridge   # terminal 2
+./db/demo/demo.sh stream-alerts   # terminal 3
+./db/demo/demo.sh stream-produce  # terminal 4: 15 payments and 1 repeated message, about 15 s
+./db/demo/demo.sh stream-test     # optional, about 50 s: the consumer killed mid-stream
+```
+
+Terminal 1 applies each payment with its partition and offset. After the
+ring (ana, luis, marta) it prints `ring sweep: 3 accounts in rings`; the
+repeated message prints `duplicate, not charged again`; the last two payments,
+from ring accounts, print `rejected (account_frozen)`. Terminal 3 shows the
+three `money-mule ring` alerts and one `burst of charges` for sara, read from
+Kafka. `stream-test` ends with `TODO EN ORDEN`: 60 of 60 with the real
+consumer, 61 without the message id and 59 committing before paying.
+
+---
+
 ## Finish
 
 ```sh
+./db/demo/demo.sh kafka-down
 ./db/demo/demo.sh down
 ```

@@ -311,6 +311,40 @@ On a laptop this shows the mechanism; throughput across machines we did not meas
         box(s, x, TOP + I(3.0), I(3.7), I(1.1), line2, size=18, font=MONO)
 
     # ------------------------------------------------------------------ Xabier
+    s = frame(prs, next(num), "Streaming in and out with Kafka", "Why Kafka and not Redis Streams", notes="""
+XABIER. The app's payments go straight into SurrealDB, but a bank also receives payments
+from outside: the card network, other banks. Those arrive as a stream, so they come in
+through Kafka. The key of each message is the account, so the payments of one account
+stay in order. A consumer applies them, and Kafka delivers every message at least once:
+if the consumer dies after paying and before confirming, the same payment comes again.
+So each message carries an id, recorded in the same transaction as the payment, and the
+second copy is not charged. We killed the consumer in the middle: 60 of 60 applied once.
+Without the id, 61; confirming before paying, 59. Alerts leave through a second topic,
+so every dashboard sees the alerts of every node. Why not Redis Streams? Redis keeps the
+stream in memory and copies it to replicas asynchronously, so it can lose a write it
+already acknowledged. For a notification that is fine; for a payment it is not. Kafka
+keeps it on disk, we can read it again like our ledger, and it splits one stream over
+many nodes by account.""")
+    y0 = TOP + I(0.25)
+    flow = [("Card network, banks", None, False), ("payments", "key = account", True),
+            ("SurrealDB", "pays once", False), ("fraud-alerts", "every node", True),
+            ("Dashboards", None, False)]
+    for i, (title_, sub_, acc) in enumerate(flow):
+        x = MARGIN + i * I(2.5)
+        box(s, x, y0, I(2.05), I(0.95), title_, sub=sub_, accent=acc, size=18)
+        if i:
+            arrow(s, x - I(0.45), y0 + I(0.47), x, y0 + I(0.47))
+    grid(s, MARGIN + I(0.3), y0 + I(1.35), [I(4.0), I(3.9), I(3.9)], I(0.62), [
+        ["", "Kafka", "Redis Streams"],
+        ["An accepted payment", "on disk, on replicas", "in memory, async copies"],
+        ["Read it again", "rewind the offset", "until it is trimmed"],
+        ["One stream, many nodes", "partitions by account", "one key, one node"],
+    ], size=19, first_col_bold=False)
+    text(s, MARGIN + I(0.3), y0 + I(4.05), I(11.8), I(0.5),
+         "Killed mid-stream: 60 of 60 once. No id: 61. Commit first: 59",
+         size=18, color=MUTED, font=MONO)
+
+    # ------------------------------------------------------------------ Xabier
     s = frame(prs, next(num), "Install, access, query", "HTTP, WebSocket, Surrealist, Python SDK", notes="""
 XABIER. Installing it is one command; we pin version 3.2.4 because 3.3 changes features
 we depend on. Our demo script starts the database on disk and loads three databases in
