@@ -35,7 +35,7 @@ prints `no overflow warnings` when every text fits its box.
 | File | Does |
 |---|---|
 | `build.py` | The 24 slides and their speaker notes |
-| `style.py` | Surrealist's palette and fonts (flat colours), layout, boxes, arrows, tables |
+| `style.py` | Surrealist's light palette and fonts (flat colours), layout, boxes, arrows, tables |
 | `charts.py` | Charts and terminal captures, as PNG in `assets/gen/` |
 | `assets/term/*.txt` | Real terminal output used in the captures (trimmed where marked) |
 | `preview.py` | Renders the deck without PowerPoint to catch overflow; the final check is opening it in PowerPoint |

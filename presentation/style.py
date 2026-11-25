@@ -1,7 +1,12 @@
 """Paleta, fuentes y piezas comunes de las diapositivas.
 
-Colores y fuentes de Surrealist (@surrealdb/ui 1.2.24), siempre planos: sin
-degradados. Una sola cosa resaltada en violeta por imagen.
+Colores y fuentes de Surrealist (@surrealdb/ui 1.2.24), tema CLARO, siempre
+planos: sin degradados. Una sola cosa resaltada en violeta por imagen.
+
+La escala gris es `obsidian` del tema de Surrealist. En claro, la interfaz usa
+obsidian-1 de fondo, obsidian-0 para los paneles y obsidian-2 para las bandas;
+el texto es el extremo oscuro de la escala. El tema oscuro (hasta 2026-11-25)
+usaba la misma escala al revés.
 """
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_CONNECTOR, MSO_SHAPE
@@ -9,14 +14,15 @@ from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.oxml.ns import qn
 from pptx.util import Emu, Inches, Pt
 
-BG = "0D0D12"       # fondo de diapositiva
-CARD = "181721"     # caja
-CARD_2 = "1F1D29"
-LINE = "3B3948"     # borde fino
-TEXT = "F5F5F7"
-MUTED = "A19FAC"
+BG = "E8E7ED"       # fondo de diapositiva (obsidian-1)
+CARD = "F5F5F7"     # caja (obsidian-0)
+CARD_2 = "DDDCE4"   # fila resaltada (obsidian-2)
+LINE = "A19FAC"     # borde fino (obsidian-3)
+TEXT = "0D0D12"     # (obsidian-9)
+MUTED = "565466"    # texto secundario (obsidian-5; el 3 y el 4 no se leen sobre claro)
+ON_ACCENT = "F5F5F7"  # texto sobre violeta
 VIOLET = "713DED"   # lo importante
-LILAC = "CB63F9"    # segundo nivel
+LILAC = "CB63F9"    # segundo nivel: rellenos, no texto (sobre claro no se lee)
 PINK = "FF00A0"     # fallo, alerta
 
 SANS = "Geist"
@@ -95,14 +101,14 @@ def box(slide, x, y, w, h, label, accent=False, size=20, sub=None, font=SANS,
     r = p.add_run()
     r.text = label
     r.font.size, r.font.name, r.font.bold = Pt(size), font, True
-    r.font.color.rgb = rgb(TEXT)
+    r.font.color.rgb = rgb(ON_ACCENT if accent else TEXT)
     if sub:
         p2 = tf.add_paragraph()
         p2.alignment = PP_ALIGN.CENTER
         r2 = p2.add_run()
         r2.text = sub
         r2.font.size, r2.font.name = Pt(max(size - 4, 16)), MONO
-        r2.font.color.rgb = rgb(TEXT if accent else MUTED)
+        r2.font.color.rgb = rgb(ON_ACCENT if accent else MUTED)
     return shp
 
 
