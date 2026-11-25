@@ -208,7 +208,7 @@ that is what makes the load balancer possible.""")
              ("5", "201", "back to the app")]
     for i, (n, what, sub) in enumerate(steps):
         x = I(0.5) + i * I(2.5)
-        text(s, x, y0 + I(3.0), I(0.4), I(0.5), n, size=22, color=LILAC, font=MONO, bold=True)
+        text(s, x, y0 + I(3.0), I(0.4), I(0.5), n, size=22, color=VIOLET, font=MONO, bold=True)
         text(s, x + I(0.4), y0 + I(3.0), I(2.05), I(0.45), what, size=18, font=MONO)
         text(s, x + I(0.4), y0 + I(3.45), I(2.05), I(0.45), sub, size=18, color=MUTED)
 
@@ -250,7 +250,7 @@ details.""")
         box(s, I(1.4), y, I(3.0), I(1.0), name, size=22)
         arrow(s, I(4.4), y + I(0.5), I(8.7), y + I(0.5))
         text(s, I(4.95), y + I(0.05), I(3.5), I(0.4), f"owns  role: {role}", size=18,
-             font=MONO, color=LILAC if acc else MUTED, align=PP_ALIGN.CENTER)
+             font=MONO, color=VIOLET if acc else MUTED, align=PP_ALIGN.CENTER)
     box(s, I(8.7), TOP + I(2.0), I(3.2), I(2.45), "account:ana", sub="document", accent=True,
         font=MONO, size=22)
 
@@ -288,7 +288,7 @@ We built this cluster, and in the video you will see us break it.""")
     for y, label in [(nb_y, "stateless"), (pd_y, "placement"),
                      (kv_y, "3 copies each")]:
         text(s, I(11.2), y + I(0.25), I(1.9), I(0.5), label, size=18, color=MUTED)
-    text(s, I(2.45), kv_y + I(1.05), I(2.5), I(0.4), "leader", size=18, color=LILAC,
+    text(s, I(2.45), kv_y + I(1.05), I(2.5), I(0.4), "leader", size=18, color=VIOLET,
          align=PP_ALIGN.CENTER)
 
     # ------------------------------------------------------------------ Xabier
@@ -536,7 +536,7 @@ measure it, and break it on purpose. Thank you. Questions?""")
     text(s, MARGIN, I(2.2), I(7), I(1.0), "Decisions, measured", size=48, bold=True)
     text(s, MARGIN, I(3.4), I(7), I(1.0), "Every number on these slides\nis in the repository.",
          size=24, color=MUTED)
-    text(s, MARGIN, I(5.2), I(7), I(0.5), REPO, size=20, font=MONO, color=LILAC)
+    text(s, MARGIN, I(5.2), I(7), I(0.5), REPO, size=20, font=MONO, color=VIOLET)
     picture(s, qr_png(), x=int(I(8.6)), y=int(I(1.8)), max_w=I(3.8), max_h=I(3.8))
 
     out = HERE / "dominican-express.pptx"

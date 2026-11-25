@@ -11,7 +11,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib import font_manager
 
-from style import BG, CARD, LINE, LILAC, MUTED, PINK, TEXT, VIOLET
+from style import BG, CARD, LINE, LILAC, MUTED, ON_ACCENT, PINK, TEXT, VIOLET
 
 HERE = Path(__file__).parent
 OUT = HERE / "assets" / "gen"
@@ -82,7 +82,12 @@ def ibm():
             ax.barh(y, found / total, height=0.5, color=c(col))
             ax.text(1.03, y + 0.08, f"{found}/{total}", family=MONO, size=19, color=c(TEXT), va="center", weight="bold")
             ax.text(1.03, y - 0.27, f"precision {prec}", family=MONO, size=15, color=c(MUTED), va="center")
-            ax.text(0.015, y, name, size=16, color=c(BG if col == LILAC else TEXT), va="center")
+            # Dentro de la barra si cabe; si la barra es corta, justo detrás y en
+            # texto oscuro: el blanco se perdería sobre el fondo claro.
+            if found / total >= 0.3:
+                ax.text(0.015, y, name, size=16, color=c(TEXT if col == LILAC else ON_ACCENT), va="center")
+            else:
+                ax.text(found / total + 0.015, y, name, size=16, color=c(TEXT), va="center")
     ax.set_xlim(0, 1.45)
     ax.set_ylim(-0.3, 5.0)
     ax.text(0, -0.1, "laundering cycles found", size=16, color=c(MUTED))
@@ -96,7 +101,8 @@ def ibm():
         yy = 2 - i
         ax2.barh(yy, width, left=(1 - width) / 2, height=0.62, color=c(col),
                  edgecolor=c(VIOLET if col == VIOLET else LINE), linewidth=1)
-        ax2.text(0.5, yy + 0.07, num, family=MONO, size=21, weight="bold", ha="center", va="center", color=c(TEXT))
+        ax2.text(0.5, yy + 0.07, num, family=MONO, size=21, weight="bold", ha="center", va="center",
+                 color=c(ON_ACCENT if col == VIOLET else TEXT))
         ax2.text(0.5, yy - 0.47, label, size=16, ha="center", va="center", color=c(MUTED))
     ax2.set_xlim(0, 1)
     ax2.set_ylim(-0.7, 2.5)
@@ -186,7 +192,7 @@ def all_charts():
         "race": race(),
         "ibm": ibm(),
         "redteam": redteam(),
-        "install": terminal("install", [(r"ALL PASSED", LILAC)]),
+        "install": terminal("install", [(r"ALL PASSED", VIOLET)]),
     }
 
 
