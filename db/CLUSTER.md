@@ -189,6 +189,20 @@ What matters for a bank:
   [FUNDAMENTALS.md](FUNDAMENTALS.md#5-storage-engines-and-architecture): refuse
   briefly rather than risk two versions of a balance.
 
+**Watching the leaders move.** `cluster/leaders_trace.py` repeats this step
+with a clock: it writes through HAProxy every 0.25 s, asks PD every 0.5 s how
+many leaders each TiKV holds, kills the busiest TiKV at 8 s and saves the trace
+to `presentation/assets/data/leaders.csv` (slide 5, "Raft in action"). Run on
+2026-11-25: TiKV 1 led all 5 regions; 4 moved to TiKV 5 and 1 to TiKV 4; 60
+writes answered OK and 7 failed, from 1.6 to 12.4 s after the kill. PD shows the
+change a few seconds late, because it learns it from the stores' heartbeats.
+
+```sh
+./db/demo/demo.sh cluster-up
+python3 db/cluster/leaders_trace.py
+./db/demo/demo.sh cluster-down
+```
+
 ## Step 5: bring it back
 
 ```sh

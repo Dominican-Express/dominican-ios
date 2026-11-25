@@ -76,47 +76,13 @@ def build():
 
     # ------------------------------------------------------------------ Jorge
     s = frame(prs, next(num), None, notes="""
-JORGE. Good morning. We are Jorge, Xabier and Javier, and this is Dominican Express:
-a digital bank. The deliverable of this course is the database, and in our project the
-database is not just storage: the whole backend, from payments to fraud detection,
-lives inside it. On the right, real data from our test bank: 2,827 transfers between
-300 customers over 60 days. The violet ones are the 22 accounts the database itself
-found moving money in rings.
-I will start with the product and why we chose this database. Then Xabier shows the
-architecture and how it behaves when we break it, and Javier closes with a critical look.""")
+JORGE. Good morning. We are Jorge, Xabier and Javier. The deliverable of this course is
+the database, so we start there: how SurrealDB works inside, and why we chose it. Then
+Xabier shows the bank we built on top of it and the demo, and Javier closes with what we
+measured and a critical look. The bank is Dominican Express. On the right, real data
+from our test bank: 2,827 transfers between 300 customers. The violet ones are the 22
+accounts the database itself found moving money in rings.""")
     cover(s)
-
-    # ------------------------------------------------------------------ Jorge
-    s = frame(prs, next(num), "The product", "iOS app in SwiftUI, talking to the database", notes="""
-JORGE. The product is a mobile bank: accounts, transfers, Bizum between customers,
-cards, shared accounts. This is our iOS app, written in SwiftUI. On the left, the home
-screen: the total balance, buttons to send money or make a Bizum, and the recent
-activity. On the right, the card screen, with the monthly spending limit. The app started
-on mock data. Now it reads and pays against the real database, with no server in
-between.""")
-    shots = HERE.parent / "docs" / "screenshots"
-    picture(s, shots / "home.png", x=int(W / 2 - I(3.0)), max_w=I(2.8))
-    picture(s, shots / "cards.png", x=int(W / 2 + I(0.2)), max_w=I(2.8))
-
-    # ------------------------------------------------------------------ Jorge
-    s = frame(prs, next(num), "Inside the app", "One protocol, two data sources", notes="""
-JORGE. I built the app. It uses SwiftUI with MVVM and async/await, in Swift 6. The views
-read everything through one protocol, BankRepository, which has two implementations. The
-mock one has fixed demo data and is the default. The SurrealDB one makes real HTTP
-calls. Four launch arguments in Xcode switch between them, and the views do not change.
-Two details matter for a bank. Money is a Decimal in the app and travels as text, never
-as a floating point number. And every payment attempt carries a new UUID, so if the same
-order arrives twice, the database pays it once.""")
-    box(s, I(2.65), TOP + I(0.1), I(8.0), I(0.95), "SwiftUI views and view models",
-        sub="MVVM, async/await, Swift 6", size=22)
-    arrow(s, I(6.65), TOP + I(1.05), I(6.65), TOP + I(1.6))
-    box(s, I(3.9), TOP + I(1.6), I(5.5), I(0.95), "BankRepository", sub="one protocol",
-        accent=True, font=MONO, size=22)
-    for i, (name, sub) in enumerate([("MockBankRepository", "demo data, the default"),
-                                     ("SurrealBankRepository", "URLSession, real database")]):
-        x = I(1.45) + i * I(5.65)
-        box(s, x, TOP + I(3.25), I(4.8), I(1.3), name, sub=sub, font=MONO, size=22)
-        arrow(s, I(6.65), TOP + I(2.55), x + I(2.4), TOP + I(3.25))
 
     # ------------------------------------------------------------------ Jorge
     s = frame(prs, next(num), "What SurrealDB is", "NoSQL, multi-model. Looks like SQL, has no JOINs",
@@ -135,6 +101,65 @@ records link to each other by ID, there are no JOINs.""")
         x = I(1.45) + i * I(3.75)
         box(s, x, TOP + I(2.4), I(3.1), I(1.5), name, sub=sub, size=24)
         arrow(s, I(6.65), TOP + I(1.25), x + I(1.55), TOP + I(2.4))
+
+    # ------------------------------------------------------------------ Jorge
+    s = frame(prs, next(num), "One record, two models", "The role lives on the edge, not in a join table",
+              notes="""
+JORGE. Here is the data model in one query. Ana's account is a document. Who owns it is
+a graph: the edge "owns" goes from customer to account, and it carries a field, the
+role. Ana is the holder, Luis the co-holder. No join table. And the same traversal, "my
+customer, owns, account", is both the permission rule (you see an account if it hangs
+from one of your owns edges) and the input of the fraud detectors. The schema is strict
+where the money is, and free-form where each detector writes different details.""")
+    box(s, MARGIN, TOP + I(0.2), W - 2 * MARGIN, I(1.0),
+        "SELECT <-owns<-customer.name AS holders, <-owns.role AS roles FROM account:ana;",
+        font=MONO, size=20, fill=CARD)
+    for i, (name, role, acc) in enumerate([("Ana García", "titular", True),
+                                          ("Luis Romero", "cotitular", False)]):
+        y = TOP + I(2.0) + i * I(1.45)
+        box(s, I(1.4), y, I(3.0), I(1.0), name, size=22)
+        arrow(s, I(4.4), y + I(0.5), I(8.7), y + I(0.5))
+        text(s, I(4.95), y + I(0.05), I(3.5), I(0.4), f"owns  role: {role}", size=18,
+             font=MONO, color=VIOLET if acc else MUTED, align=PP_ALIGN.CENTER)
+    box(s, I(8.7), TOP + I(2.0), I(3.2), I(2.45), "account:ana", sub="document", accent=True,
+        font=MONO, size=22)
+
+    # ------------------------------------------------------------------ Jorge
+    s = frame(prs, next(num), "Compute apart from storage", "3 copies, Raft majority 2 of 3: CP", notes="""
+JORGE. How it stores the data. SurrealDB separates compute from storage: the same binary
+runs in memory, on a local disk, or on TiKV, a distributed key-value store. With TiKV
+the SurrealDB nodes keep no data, so any node can serve any request. TiKV splits the
+data into ranges called regions and keeps each region on three machines; PD, the
+placement driver, knows where every region lives. The three copies agree through Raft:
+one copy is the leader and takes the writes, and a write counts once two of the three
+have it. If the leader dies, the other two elect a new one. Under a network partition
+the minority side refuses writes: in CAP terms this is CP, consistency before
+availability, the right side for a bank.""")
+    nb_y, pd_y, kv_y = TOP + I(0.1), TOP + I(1.75), TOP + I(3.4)
+    for x, label in [(I(3.4), "Node A"), (I(7.0), "Node B")]:
+        box(s, x, nb_y, I(2.6), I(0.95), label, size=22)
+        arrow(s, x + I(1.3), nb_y + I(0.95), I(6.0), pd_y)
+    box(s, I(4.85), pd_y, I(2.3), I(0.95), "PD", size=22)
+    for i in range(3):
+        x = I(2.45) + i * I(3.0)
+        box(s, x, kv_y, I(2.5), I(0.95), f"TiKV {i + 1}", accent=(i == 0), size=22)
+        arrow(s, I(6.0), pd_y + I(0.95), x + I(1.25), kv_y)
+    for y, label in [(nb_y, "stateless"), (pd_y, "placement"),
+                     (kv_y, "3 copies each")]:
+        text(s, I(11.2), y + I(0.25), I(1.9), I(0.5), label, size=18, color=MUTED)
+    text(s, I(2.45), kv_y + I(1.05), I(2.5), I(0.4), "leader", size=18, color=VIOLET,
+         align=PP_ALIGN.CENTER)
+
+    # ------------------------------------------------------------------ Jorge
+    s = frame(prs, next(num), "Raft in action", "A leader dies: refused for seconds, then a new leader", notes="""
+JORGE. This is Raft measured on our cluster, not a diagram. We wrote through the load
+balancer every quarter of a second and killed the TiKV that led all five regions. The
+top shows how many leaders each machine has, as PD reports them; PD learns from
+heartbeats, so it sees the change a few seconds late. The other two machines took over
+the regions. Below, each mark is a write. For about twelve seconds writes were refused,
+in pink, while the election happened; after that, everything was OK again. Refused, not
+lost: the client gets an error and can retry, and no write is ever half applied.""")
+    picture(s, g["raft"])
 
     # ------------------------------------------------------------------ Jorge
     s = frame(prs, next(num), "One engine instead of several",
@@ -157,18 +182,37 @@ through owns to an account, decides what you can see and feeds the fraud detecto
             box(s, x, TOP + I(1.35) + j * I(1.05), I(5.6), I(0.85), item, size=20)
 
     # ------------------------------------------------------------------ Jorge
+    s = frame(prs, next(num), "Against the alternatives", "From the documentation. Speed not measured",
+              notes="""
+JORGE. Why SurrealDB and not the others. This comes from each vendor's documentation; we
+did not measure speed. A bank needed four things together: transactions over several
+records, a real graph, permissions per field, and queries into the past for
+investigations. MongoDB has the transactions, but its graph lookup is limited to 100 MB
+and per-field permissions only exist through views. Cassandra keeps transactions inside
+one partition. Neo4j is the strongest graph, but property permissions are Enterprise
+only. ArangoDB was the serious alternative, rejected for its permissions. PostgreSQL is
+far more mature, but it is not NoSQL, which the course requires, and its graph is a
+recursive query. SurrealDB is the only row with all four, and that is the reason: the
+permission rule and the fraud detector are the same graph path, in the same transaction
+as the money. Now Xabier shows the bank we built on it.""")
+    grid(s, MARGIN, TOP + I(0.05), [I(2.35), I(2.4), I(2.4), I(2.5), I(2.45)], I(0.74), [
+        ["", "Transactions", "Graph", "Field permissions", "Query the past"],
+        ["MongoDB", "multi-document", "100 MB limit", "views only", "about 5 min"],
+        ["Cassandra", "one partition", "no", "column masking", "no"],
+        ["Neo4j", "yes", "native", "Enterprise only", "no"],
+        ["ArangoDB", "single server", "native", "per collection", "no"],
+        ["PostgreSQL", "yes, not NoSQL", "recursive CTE", "row-level", "no system time"],
+        ["SurrealDB", "multi-record", "native", "per field", "VERSION, beta"],
+    ], size=18, highlight_row=6)
+
+    # ------------------------------------------------------------------ Xabier
     s = frame(prs, next(num), "Why a bank needs it", "Typical fits: fraud and risk, social data, access control",
               notes="""
-JORGE. Why this database for a bank? A bank needs three things at once. Money that
-never goes out of balance: that needs transactions over several records. Fraud is a
-graph problem: rings of accounts, phones shared by strangers. And the data is sensitive,
-so each customer must only see their own records, and some fields like the card number
-only after a PIN. Of the engines we compared, SurrealDB is the one that gives all three
-in one place.
-Typical scenarios for it: fraud and risk analysis, social and recommendation data,
-access-control models that are graphs, and small or medium applications that want the
-API, sign-in and real-time updates inside the database. Now Xabier will show you the
-whole system, from the phone to the disk.""")
+XABIER. So we built a bank on it. A bank needs three things at once, and each one maps
+to something Jorge showed. Money that never goes out of balance needs transactions over
+several records. Fraud is a graph problem: rings of accounts, phones shared by
+strangers. And the data is sensitive: each customer sees only their own records, and the
+card number only after a PIN.""")
     rows = [("Money never out of balance", "Multi-record ACID", False),
             ("Fraud is a graph", "Native graph", True),
             ("Sensitive data", "Per-record, per-field permissions", False)]
@@ -177,6 +221,24 @@ whole system, from the phone to the disk.""")
         box(s, I(1.2), y, I(4.6), I(1.15), need, size=22)
         arrow(s, I(5.8), y + I(0.575), I(7.4), y + I(0.575))
         box(s, I(7.4), y, I(4.7), I(1.15), cap, accent=acc, size=22)
+
+    # ------------------------------------------------------------------ Xabier
+    s = frame(prs, next(num), "The app is one client", "One protocol, two data sources", notes="""
+XABIER. The iOS app, written by Jorge in SwiftUI, is just one more client of the
+database. Its views read through one protocol with two implementations: demo data, or
+real HTTP calls to SurrealDB. Two details matter for a bank: money travels as text,
+never as a floating point number, and every payment attempt carries its own id, so the
+database pays it once even if it arrives twice.""")
+    box(s, I(2.65), TOP + I(0.1), I(8.0), I(0.95), "SwiftUI views and view models",
+        sub="MVVM, async/await, Swift 6", size=22)
+    arrow(s, I(6.65), TOP + I(1.05), I(6.65), TOP + I(1.6))
+    box(s, I(3.9), TOP + I(1.6), I(5.5), I(0.95), "BankRepository", sub="one protocol",
+        accent=True, font=MONO, size=22)
+    for i, (name, sub) in enumerate([("MockBankRepository", "demo data, the default"),
+                                     ("SurrealBankRepository", "URLSession, real database")]):
+        x = I(1.45) + i * I(5.65)
+        box(s, x, TOP + I(3.25), I(4.8), I(1.3), name, sub=sub, font=MONO, size=22)
+        arrow(s, I(6.65), TOP + I(2.55), x + I(2.4), TOP + I(3.25))
 
     # ------------------------------------------------------------------ Xabier
     s = frame(prs, next(num), "The path of a request", "One address for the app. No backend in between", notes="""
@@ -232,29 +294,6 @@ balancer at all. Checking only the node itself: 6 and 7, all from the storage el
     ], size=22, first_col_bold=False, highlight_row=1)
 
     # ------------------------------------------------------------------ Xabier
-    s = frame(prs, next(num), "One record, two models", "The role lives on the edge, not in a join table",
-              notes="""
-XABIER. Here is the data model in one query. Ana's account is a document. Who owns it is
-a graph: the edge "owns" goes from customer to account, and it carries a field, the role.
-Ana is the holder, Luis the co-holder. No join table. And the same traversal,
-"my customer, owns, account", is both the permission rule (you see an account if it
-hangs from one of your owns edges) and the input of the fraud detectors. We use a strict
-schema where money is, and free-form fields where each detector writes different
-details.""")
-    box(s, MARGIN, TOP + I(0.2), W - 2 * MARGIN, I(1.0),
-        "SELECT <-owns<-customer.name AS holders, <-owns.role AS roles FROM account:ana;",
-        font=MONO, size=20, fill=CARD)
-    for i, (name, role, acc) in enumerate([("Ana García", "titular", True),
-                                          ("Luis Romero", "cotitular", False)]):
-        y = TOP + I(2.0) + i * I(1.45)
-        box(s, I(1.4), y, I(3.0), I(1.0), name, size=22)
-        arrow(s, I(4.4), y + I(0.5), I(8.7), y + I(0.5))
-        text(s, I(4.95), y + I(0.05), I(3.5), I(0.4), f"owns  role: {role}", size=18,
-             font=MONO, color=VIOLET if acc else MUTED, align=PP_ALIGN.CENTER)
-    box(s, I(8.7), TOP + I(2.0), I(3.2), I(2.45), "account:ana", sub="document", accent=True,
-        font=MONO, size=22)
-
-    # ------------------------------------------------------------------ Xabier
     s = frame(prs, next(num), "Consistency under a race", "10 simultaneous full-balance transfers, 20 rounds",
               notes="""
 XABIER. Consistency. Our first design was a pure ledger: the balance is the sum of the
@@ -266,30 +305,6 @@ also updates the account's balance field. That write is the conflict point; one 
 two transactions is undone entirely. Result: zero overdrafts, every time. We only found
 this by testing it.""")
     picture(s, g["race"])
-
-    # ------------------------------------------------------------------ Xabier
-    s = frame(prs, next(num), "Compute apart from storage", "3 copies, Raft majority 2 of 3: CP", notes="""
-XABIER. Architecture. SurrealDB separates compute from storage. The same binary runs on
-memory, on disk, or on TiKV, a distributed key-value store. With TiKV, SurrealDB nodes
-are stateless: any node serves any request. TiKV splits the data in ranges called
-regions, and keeps every region on three nodes, kept in agreement by the Raft protocol.
-A write commits when two of three have it. Under a network partition the minority side
-refuses writes: in CAP terms it is CP, consistency first. For a bank, the right side.
-We built this cluster, and in the video you will see us break it.""")
-    nb_y, pd_y, kv_y = TOP + I(0.1), TOP + I(1.75), TOP + I(3.4)
-    for x, label in [(I(3.4), "Node A"), (I(7.0), "Node B")]:
-        box(s, x, nb_y, I(2.6), I(0.95), label, size=22)
-        arrow(s, x + I(1.3), nb_y + I(0.95), I(6.0), pd_y)
-    box(s, I(4.85), pd_y, I(2.3), I(0.95), "PD", size=22)
-    for i in range(3):
-        x = I(2.45) + i * I(3.0)
-        box(s, x, kv_y, I(2.5), I(0.95), f"TiKV {i + 1}", accent=(i == 0), size=22)
-        arrow(s, I(6.0), pd_y + I(0.95), x + I(1.25), kv_y)
-    for y, label in [(nb_y, "stateless"), (pd_y, "placement"),
-                     (kv_y, "3 copies each")]:
-        text(s, I(11.2), y + I(0.25), I(1.9), I(0.5), label, size=18, color=MUTED)
-    text(s, I(2.45), kv_y + I(1.05), I(2.5), I(0.4), "leader", size=18, color=VIOLET,
-         align=PP_ALIGN.CENTER)
 
     # ------------------------------------------------------------------ Xabier
     s = frame(prs, next(num), "How it scales", "Scale compute and storage separately", notes="""
@@ -404,29 +419,30 @@ XABIER (video 2, 5 minutes 17; narrate over it).
                      ("demo.sh access", "every attack refused"),
                      ("demo.sh aml", "20 rings, all labelled")])
 
-    # ------------------------------------------------------------------ Xabier
+    # ------------------------------------------------------------------ Javier
     s = frame(prs, next(num), "Tested on data we did not make", "Calibrated on one set, validated untouched on another",
               notes="""
-XABIER. The ring in the demo we planted ourselves, so it can only confirm our own design.
-So we ran the detector on IBM's public anti-money-laundering dataset, where the answer
-is known. First result: 6 of 54 laundering cycles. We had assumed a mule keeps a
-commission, so the amount shrinks; on IBM's data it grows half the time. We fixed the
-method before looking, calibrated on one set, 33 of 54, and validated on another set we
-had not touched: 8 of 12. At 87 percent precision, freezing would hit one innocent in
-eight, so two tiers: strict rings freeze, wide ones go to an analyst. And a cheap
-filter first: 4.5 million transfers down to 381, without losing a single ring.""")
+JAVIER. Does it hold up on data we did not make? The ring in the demo we planted
+ourselves, so it can only confirm our own design. So we ran the detector on IBM's public
+anti-money- laundering dataset, where the answer is known. First result: 6 of 54
+laundering cycles. We had assumed a mule keeps a commission, so the amount shrinks; on
+IBM's data it grows half the time. We fixed the method before looking, calibrated on one
+set, 33 of 54, and validated on another set we had not touched: 8 of 12. At 87 percent
+precision, freezing would hit one innocent in eight, so two tiers: strict rings freeze,
+wide ones go to an analyst. And a cheap filter first: 4.5 million transfers down to 381,
+without losing a single ring.""")
     picture(s, g["ibm"])
 
-    # ------------------------------------------------------------------ Xabier
+    # ------------------------------------------------------------------ Javier
     s = frame(prs, next(num), "What the cluster gives, what it costs",
               "The cluster proves failover. Time travel needs one node", notes="""
-XABIER. What we measured. Killing a follower: nothing visible. Killing the leader of the
-region being written: 9 to 12 seconds of errors, and not one write lost or half applied.
-The node comes back and catches up in about ten seconds. It costs about 1.1 GB of RAM
-on this laptop. And two features do not cross nodes: time travel only exists on the
-single-node engine, and live queries only see changes made on their own node; across
-nodes it is an Enterprise feature. So the alert demo and the time machine run on one
-node, and the cluster proves the failover. Javier will now step back and judge the whole thing.""")
+JAVIER. What the cluster gives and what it costs. Killing a follower: nothing visible.
+Killing the leader of the region being written: 9 to 12 seconds of errors, and not one
+write lost or half applied. The node comes back and catches up in about ten seconds. It
+costs about 1.1 GB of RAM on this laptop. And two features do not cross nodes: time
+travel only exists on the single-node engine, and live queries only see changes made on
+their own node; across nodes it is an Enterprise feature. So the alert demo and the time
+machine run on one node, and the cluster proves the failover.""")
     grid(s, MARGIN + I(0.3), TOP + I(0.2), [I(5.8), I(5.8)], I(0.78), [
         ["Gives", "Costs"],
         ["Every write on 3 nodes", "About 1.1 GB of RAM"],
@@ -465,29 +481,6 @@ the IBM ring sweep took 54 seconds. Rewritten with SELECT VALUE, it takes one se
         ["Write conflict as HTTP 400", "Retry with the same order id"],
         ["IBM ring sweep: 54 s", "SELECT VALUE: 1.0 s"],
     ], size=20, first_col_bold=False)
-
-    # ------------------------------------------------------------------ Javier
-    s = frame(prs, next(num), "Against the alternatives", "From the documentation. Speed not measured",
-              notes="""
-JAVIER. How it compares, from each vendor's documentation, not measured: we do not claim
-it is faster than any of them. MongoDB also has multi-document transactions; what
-separates them is the graph, limited to 100 MB, and permissions per field only through
-views. Cassandra keeps transactions inside one partition. Neo4j is the strongest graph,
-but property permissions are Enterprise only. ArangoDB was the serious alternative,
-rejected for permissions. PostgreSQL is not NoSQL, which the course requires, but it is
-still the fair comparison. It is far more mature: SELECT FOR UPDATE, serializable
-isolation, row-level security and decades of tooling. With it we would lose the graph
-shared by permissions and fraud detection, the API inside the database, and time travel.
-SurrealDB is the only one of these with queries into the past inside the language.""")
-    grid(s, MARGIN, TOP + I(0.05), [I(2.35), I(2.4), I(2.4), I(2.5), I(2.45)], I(0.74), [
-        ["", "Transactions", "Graph", "Field permissions", "Query the past"],
-        ["MongoDB", "multi-document", "100 MB limit", "views only", "about 5 min"],
-        ["Cassandra", "one partition", "no", "column masking", "no"],
-        ["Neo4j", "yes", "native", "Enterprise only", "no"],
-        ["ArangoDB", "single server", "native", "per collection", "no"],
-        ["PostgreSQL", "yes, not NoSQL", "recursive CTE", "row-level", "no system time"],
-        ["SurrealDB", "multi-record", "native", "per field", "VERSION, beta"],
-    ], size=18, highlight_row=6)
 
     # ------------------------------------------------------------------ Javier
     s = frame(prs, next(num), "Where SurrealDB fits", "Strengths we measured, limits we hit", notes="""

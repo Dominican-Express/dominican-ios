@@ -46,7 +46,7 @@ def save(fig, name):
 
 
 def race():
-    """Diapositiva 7: 10 transferencias simultáneas del saldo entero, 20 rondas."""
+    """«Consistency under a race»: 10 transferencias simultáneas del saldo entero, 20 rondas."""
     fig, ax = plt.subplots(figsize=(12, 4.6))
     clean(ax)
     rows = [("fn::transfer", 0, 0, VIOLET, "0 of 20"),
@@ -68,7 +68,7 @@ def race():
 
 
 def ibm():
-    """Diapositiva 12: ciclos de IBM detectados y precisión; el filtro previo."""
+    """«Tested on data we did not make»: ciclos de IBM detectados y precisión; el filtro previo."""
     fig = plt.figure(figsize=(12, 5.0))
     ax = fig.add_axes([0.0, 0.08, 0.56, 0.86])
     clean(ax)
@@ -110,7 +110,7 @@ def ibm():
 
 
 def redteam():
-    """Diapositiva 15: roturas a propósito, cazadas por su prueba (74/74)."""
+    """«Don't trust the tool, test it»: roturas a propósito, cazadas por su prueba (74/74)."""
     suites = [("access", 9), ("payments", 11), ("cards", 12), ("detect", 9),
               ("time travel", 10), ("controls", 23)]
     fig, ax = plt.subplots(figsize=(12, 4.8))
@@ -187,11 +187,64 @@ def graph(name, w, h, dim=1.0):
     return save(fig, name)
 
 
+def raft():
+    """«Raft in action»: líderes por TiKV y escrituras mientras muere el TiKV
+    líder. Datos medidos con db/cluster/leaders_trace.py (assets/data/leaders.csv)."""
+    import csv
+    rows = list(csv.DictReader(open(HERE / "assets" / "data" / "leaders.csv")))
+    kill = next(r for r in rows if r["kind"] == "kill")
+    t_kill = float(kill["t"])
+    killed = re.search(r"store (\d+)", kill["state"]).group(1)
+    series = {}
+    for r in rows:
+        if r["kind"] == "leaders" and r["value"] != "":
+            series.setdefault(r["id"], []).append((float(r["t"]) - t_kill, int(r["value"])))
+    writes = [(float(r["t"]) - t_kill, r["state"] == "ok") for r in rows if r["kind"] == "write"]
+
+    fig = plt.figure(figsize=(12, 5.0))
+    ax = fig.add_axes([0.07, 0.36, 0.78, 0.56])
+    for sp in ("top", "right"):
+        ax.spines[sp].set_visible(False)
+    for sp in ("left", "bottom"):
+        ax.spines[sp].set_color(c(LINE))
+    ax.tick_params(colors=c(MUTED), labelsize=13)
+    others = iter([VIOLET, LILAC])
+    for sid in sorted(series):
+        pts = series[sid]
+        col = PINK if sid == killed else next(others)
+        ax.step([p[0] for p in pts], [p[1] for p in pts], where="post", color=c(col), linewidth=3)
+        ax.text(pts[-1][0] + 0.4, pts[-1][1], f"TiKV {sid}" + (" (killed)" if sid == killed else ""),
+                size=15, color=c(col), va="center", weight="bold")
+    ax.axvline(0, color=c(TEXT), linewidth=1.2, linestyle=(0, (4, 3)))
+    ax.text(0.25, 5.45, f"TiKV {killed} killed", size=14, color=c(TEXT), weight="bold", va="center")
+    ax.set_ylabel("leaders, as PD sees them", size=14, color=c(MUTED))
+    ax.set_yticks(range(0, 6))
+    x0, x1 = writes[0][0] - 0.5, writes[-1][0] + 0.5
+    ax.set_xlim(x0, x1 + 4.5)
+    ax.set_ylim(-0.3, 5.6)
+    ax.set_xticks([])
+
+    ax2 = fig.add_axes([0.07, 0.12, 0.78, 0.14])
+    clean(ax2)
+    for t, ok in writes:
+        ax2.add_patch(plt.Rectangle((t - 0.09, 0), 0.18, 1, color=c(LINE if ok else PINK)))
+    ax2.axvline(0, color=c(TEXT), linewidth=1.2, linestyle=(0, (4, 3)))
+    ax2.set_xlim(x0, x1 + 4.5)
+    ax2.set_ylim(0, 1)
+    bad = [t for t, ok in writes if not ok]
+    ax2.text(x1 + 0.6, 0.5, f"{sum(ok for _, ok in writes)} ok\n{len(bad)} errors",
+             size=13, family=MONO, color=c(TEXT), va="center")
+    ax2.text(x0, -0.7, f"a write every 0.25 s through HAProxy: errors from {bad[0]:.1f} to "
+             f"{bad[-1]:.1f} s after the kill, then OK", size=13, color=c(MUTED))
+    return save(fig, "raft")
+
+
 def all_charts():
     return {
         "race": race(),
         "ibm": ibm(),
         "redteam": redteam(),
+        "raft": raft(),
         "install": terminal("install", [(r"ALL PASSED", VIOLET)]),
     }
 
