@@ -29,6 +29,7 @@ explained in [FUNDAMENTALS.md](FUNDAMENTALS.md); the critical assessment is in
 | 18 | Surrealist instead of a custom dashboard |
 | 19 | The cluster runs on TiKV through TiUP, natively, and is not the demo node |
 | 20 | HAProxy in front of the SurrealDB nodes, health-checking the node and not the storage |
+| 21 | Kafka at the edges for streaming, not Redis Streams |
 
 ## 1. SurrealDB instead of the alternatives
 
@@ -516,3 +517,35 @@ from the storage election. A live query opened through HAProxy received 5 of
 **Consequences and costs.** One more process, and in this setup a single point
 of failure (production runs two balancers on a floating address, with TLS). Live alerts need
 one connection per node, or a re-read on reconnect.
+
+## 21. Kafka at the edges for streaming, not Redis Streams
+
+**Context.** Payments from outside the app (card network, other banks, Bizum
+gateway) arrive as a stream, and fraud alerts must reach every dashboard. A
+`LIVE SELECT` only sees its own node and lost notifications with two
+subscribers (23 and 24 of 30, [REFLECTION.md](REFLECTION.md)).
+
+**Decision.** Apache Kafka at the two edges ([STREAMING.md](STREAMING.md)):
+topic `payments` in, keyed by source account, applied by a consumer through
+`fn::stream_apply`; topic `fraud-alerts` out, filled by a bridge with one live
+query per node. SurrealDB stays the source of truth: Kafka never decides
+whether a payment is valid. One local broker in KRaft mode, Kafka 3.9.1.
+
+**Alternatives considered.** Redis Streams (rejected: entries live in memory
+and replicate asynchronously, so a failover can lose acknowledged writes; one
+stream is one key on one node; fine for notifications, not for payments).
+Kafka in the payment path of the app (rejected: the app's payments already
+commit in one transaction inside SurrealDB, and a broker in between would only
+add a hop). No streaming at all, only `LIVE SELECT` (rejected for the delivery
+losses and the one-node limit above).
+
+**Evidence.** `demo.sh stream-test`: 60 payments, the consumer killed at
+message 25. Paying, recording the message id and then committing: 60 of 60.
+Without recording the id: 61. Committing before paying: 59. Total balance
+unchanged and `fn::reconcile()` empty in all three. Broker memory: about
+340 MB. Throughput: not measured.
+
+**Consequences and costs.** One more process with a JVM. A single broker keeps
+one copy of each partition, so Kafka's own fault tolerance is not shown. The
+ring sweep runs every 2 s from the consumer, not per message. Alerts can reach
+the topic twice after a bridge restart; dashboards drop repeated ids.

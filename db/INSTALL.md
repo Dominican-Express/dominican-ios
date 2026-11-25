@@ -10,6 +10,7 @@ the SurrealDB binary (~110 MB), Surrealist (~55 MB) and the demo data (~100 MB).
 | **SurrealDB** | **3.2.4** exactly | The version every test and measurement in this repo was run on |
 | **Surrealist** | 3.x (we use 3.9.13) | Official SurrealDB GUI: queries, graph view, live queries |
 | Python | 3.10 or newer | Demo and test scripts (tests use only the standard library) |
+| Java | 11 or newer | Only for the Kafka demo ([STREAMING.md](STREAMING.md)); `demo.sh kafka-up` downloads Kafka itself |
 | [uv](https://docs.astral.sh/uv/) | any recent | Runs the scripts that need packages (SurrealDB SDK, numpy) without installing them globally |
 | zsh, curl | any | The demo scripts are zsh; curl talks to the HTTP endpoint |
 

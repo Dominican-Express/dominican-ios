@@ -31,6 +31,7 @@ and follow [DEMO.md](DEMO.md). Stop with `./db/demo/demo.sh down`.
 | [REFLECTION.md](REFLECTION.md) | Strengths and limitations we observed, comparison, where SurrealDB fits |
 | [DATASET.md](DATASET.md) | The fraud detector tested on IBM's public anti-money-laundering dataset |
 | [CLUSTER.md](CLUSTER.md) | The same schema on a 3-node TiKV cluster: replication, killing a node, recovery |
+| [STREAMING.md](STREAMING.md) | Payments in and fraud alerts out through Kafka, and why not Redis Streams |
 | [APP_INTEGRATION.md](APP_INTEGRATION.md) | How the iOS app or the web talks to the database: sign-in, queries, endpoints, retries |
 | [README.es.md](README.es.md) | The full development log in Spanish, with every measurement and every SurrealQL trap we hit |
 
