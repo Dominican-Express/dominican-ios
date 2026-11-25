@@ -293,7 +293,7 @@ Needs Java 11 or newer once; the first `kafka-up` downloads Kafka 3.9.1
 ./db/demo/demo.sh stream-bridge   # terminal 2
 ./db/demo/demo.sh stream-alerts   # terminal 3
 ./db/demo/demo.sh stream-produce  # terminal 4: 15 payments and 1 repeated message, about 15 s
-./db/demo/demo.sh stream-test     # optional, about 50 s: the consumer killed mid-stream
+./db/demo/demo.sh stream-test     # optional, about 1 min: the consumer killed mid-stream
 ```
 
 Terminal 1 applies each payment with its partition and offset. After the
@@ -302,7 +302,8 @@ repeated message prints `duplicate, not charged again`; the last two payments,
 from ring accounts, print `rejected (account_frozen)`. Terminal 3 shows the
 three `money-mule ring` alerts and one `burst of charges` for sara, read from
 Kafka. `stream-test` ends with `TODO EN ORDEN`: 60 of 60 with the real
-consumer, 61 without the message id and 59 committing before paying.
+consumer, 61 without the message id and 59 committing before paying; the 2
+malformed messages in `payments-dlq`; 8 copies at once paid once.
 
 ---
 

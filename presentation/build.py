@@ -323,8 +323,8 @@ Without the id, 61; confirming before paying, 59. Alerts leave through a second 
 so every dashboard sees the alerts of every node. Why not Redis Streams? Redis keeps the
 stream in memory and copies it to replicas asynchronously, so it can lose a write it
 already acknowledged. For a notification that is fine; for a payment it is not. Kafka
-keeps it on disk, we can read it again like our ledger, and it splits one stream over
-many nodes by account.""")
+writes it to several brokers before saying OK, we can read it again like our ledger,
+and it splits one stream over many nodes by account.""")
     y0 = TOP + I(0.25)
     flow = [("Card network, banks", None, False), ("payments", "key = account", True),
             ("SurrealDB", "pays once", False), ("fraud-alerts", "every node", True),
@@ -336,7 +336,7 @@ many nodes by account.""")
             arrow(s, x - I(0.45), y0 + I(0.47), x, y0 + I(0.47))
     grid(s, MARGIN + I(0.3), y0 + I(1.35), [I(4.0), I(3.9), I(3.9)], I(0.62), [
         ["", "Kafka", "Redis Streams"],
-        ["An accepted payment", "on disk, on replicas", "in memory, async copies"],
+        ["An accepted payment", "on 2 of 3 brokers first", "in memory, async copies"],
         ["Read it again", "rewind the offset", "until it is trimmed"],
         ["One stream, many nodes", "partitions by account", "one key, one node"],
     ], size=19, first_col_bold=False)

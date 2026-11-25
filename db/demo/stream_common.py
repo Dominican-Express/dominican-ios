@@ -8,12 +8,16 @@ import base64
 import http.client
 import json
 import os
+import re
 import time
 from urllib.parse import urlparse
 
 KAFKA = os.environ.get("KAFKA_BOOTSTRAP", "127.0.0.1:9092")
 PAYMENTS = os.environ.get("KAFKA_PAYMENTS", "payments")
 ALERTS = os.environ.get("KAFKA_ALERTS", "fraud-alerts")
+# Cola de mensajes muertos: lo que no se puede ni leer va aquí, para que un
+# solo mensaje roto no pare la partición entera.
+DLQ = os.environ.get("KAFKA_DLQ", "payments-dlq")
 
 URL = os.environ.get("SURREAL_URL", "http://127.0.0.1:8099")
 NS = os.environ.get("SURREAL_NS", "dx")
@@ -34,12 +38,23 @@ class Surreal:
     def sql(self, text):
         headers = {"Accept": "application/json", "Authorization": _AUTH,
                    "surreal-ns": NS, "surreal-db": self.db}
+        # Un reintento si la conexión se cortó (el servidor cierra las que
+        # llevan rato quietas). Repetir es seguro: fn::stream_apply es
+        # idempotente. Si vuelve a fallar, el consumidor se para SIN confirmar
+        # el offset, y al arrancar otra vez Kafka le devuelve el mismo mensaje.
+        for attempt in (1, 2):
+            try:
+                self.conn.request("POST", "/sql", body=text.encode(), headers=headers)
+                raw = self.conn.getresponse().read()
+                break
+            except (http.client.HTTPException, ConnectionError):
+                self.conn = http.client.HTTPConnection(self.host, self.port, timeout=60)
+                if attempt == 2:
+                    raise
         try:
-            self.conn.request("POST", "/sql", body=text.encode(), headers=headers)
-            out = json.loads(self.conn.getresponse().read())
-        except (http.client.HTTPException, ConnectionError):
-            self.conn = http.client.HTTPConnection(self.host, self.port, timeout=60)
-            raise
+            out = json.loads(raw)
+        except ValueError:
+            raise RuntimeError(f"respuesta que no es JSON: {raw[:120]!r}")
         if isinstance(out, dict):
             raise RuntimeError(f"error del servidor: {out}")
         return out
@@ -67,10 +82,33 @@ def acc(name):
     return f"type::record('account', {json.dumps(name)})"
 
 
+_KEY = re.compile(r"[A-Za-z0-9_-]{1,64}")
+_AMOUNT = re.compile(r"[0-9]{1,9}(\.[0-9]{1,2})?")
+
+
 def money(s):
     """El importe viaja como TEXTO en el JSON (un número JSON es coma flotante
-    y el dinero no lo es). Se valida antes de convertirlo en decimal."""
-    whole, _, cents = s.partition(".")
-    if not (whole.isdigit() and len(whole) <= 9 and (cents == "" or (cents.isdigit() and len(cents) <= 2))):
+    y el dinero no lo es). Solo dígitos ASCII: `str.isdigit()` aceptaría
+    también «²» o cifras árabes, que SurrealDB no entiende."""
+    if not isinstance(s, str) or not _AMOUNT.fullmatch(s):
         raise ValueError(f"importe no válido: {s!r}")
     return f"{s}dec"
+
+
+def parse(raw):
+    """Lee un mensaje de `payments`. Lanza ValueError con el motivo si no es
+    un pago bien formado: entonces va a la cola de mensajes muertos."""
+    try:
+        m = json.loads(raw) if raw is not None else None
+    except ValueError:
+        raise ValueError("not_json")
+    if not isinstance(m, dict):
+        raise ValueError("not_an_object")
+    for field in ("id", "from", "to"):
+        if not isinstance(m.get(field), str) or not _KEY.fullmatch(m[field]):
+            raise ValueError(f"bad_{field}")
+    try:
+        money(m.get("amount"))
+    except ValueError:
+        raise ValueError("bad_amount")
+    return m
