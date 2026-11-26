@@ -59,6 +59,30 @@ CASES = [
      "DEFINE TABLE OVERWRITE fraud_alert SCHEMALESS TYPE NORMAL\n    PERMISSIONS FOR select WHERE account IN $auth.customer->owns->account;",
      "DEFINE TABLE OVERWRITE fraud_alert SCHEMALESS TYPE NORMAL\n    PERMISSIONS FOR select FULL;",
      "ana no ve alertas de cuentas ajenas"),
+    ("el inicio de sesión no cuenta los fallos",
+     "06_access.surql",
+     "LET $fails = (UPDATE ONLY $u.id SET login_failures += 1 RETURN VALUE login_failures);",
+     "LET $fails = 0;",
+     "5 incorrectas seguidas bloquean la cuenta"),
+
+    ("el inicio de sesión no mira el bloqueo",
+     "06_access.surql",
+     "IF $u.login_locked_until != NONE AND $u.login_locked_until > time::now() {",
+     "IF false {",
+     "bloqueada, rechaza incluso la contraseña correcta"),
+
+    ("un acierto no pone el contador a cero",
+     "06_access.surql",
+     "UPDATE $u.id SET login_failures = 0, login_locked_until = NONE, last_login_at = time::now();",
+     "UPDATE $u.id SET login_locked_until = NONE, last_login_at = time::now();",
+     "un acierto pone el contador a cero"),
+
+    ("el acierto solo escribe si había fallos",
+     "06_access.surql",
+     "UPDATE $u.id SET login_failures = 0, login_locked_until = NONE, last_login_at = time::now();",
+     "IF $u.login_failures != 0 { UPDATE $u.id SET login_failures = 0, login_locked_until = NONE };",
+     "un acierto deja constancia en la ficha (last_login_at)"),
+
 ]
 
 if __name__ == "__main__":

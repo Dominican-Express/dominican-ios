@@ -129,5 +129,4 @@ None of these comparisons were measured; they come from documentation.
   root and in memory hid real problems twice.
 - Treat every engine feature as a hypothesis: measure it (`EXPLAIN`, delivery
   counts, red-team breaks) before building on it.
-- Build the WORM copy of the audit log and a login attempt limit, both still
-  missing.
+- Build the WORM copy of the audit log, still missing.

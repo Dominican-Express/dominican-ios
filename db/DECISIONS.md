@@ -30,6 +30,7 @@ explained in [FUNDAMENTALS.md](FUNDAMENTALS.md); the critical assessment is in
 | 19 | The cluster runs on TiKV through TiUP, natively, and is not the demo node |
 | 20 | HAProxy in front of the SurrealDB nodes, health-checking the node and not the storage |
 | 21 | Kafka at the edges for streaming, not Redis Streams |
+| 22 | Login attempt limit inside the record access, counted so that parallel attempts cannot skip it |
 
 ## 1. SurrealDB instead of the alternatives
 
@@ -164,8 +165,8 @@ than 90 seconds old.
 **Alternatives considered.** Permission tables joined at query time; checks in
 a backend (rejected with decision 2).
 
-**Evidence.** `access_test.py`: 18 checks acting as Ana and Luis, including
-attacks. `access_redteam.py`: 9/9. The `holder` condition fixed a real flaw of
+**Evidence.** `access_test.py`: 25 checks acting as Ana, Luis and Marta,
+including attacks and the login limit (decision 22). `access_redteam.py`: 13/13. The `holder` condition fixed a real flaw of
 the first version: a verified joint owner would have seen the other owner's
 PAN.
 
@@ -194,8 +195,8 @@ The PIN travels in the request and is never stored.
 **Evidence.** `cards_test.py`: 41 checks (PIN limit, cards, notifications);
 `cards_redteam.py`: 12/12.
 
-**Consequences and costs.** The password login has no attempt limit yet; only
-the PIN does (README.es.md, "Pendiente").
+**Consequences and costs.** The password login got the same kind of limit
+later, inside the record access itself (decision 22).
 
 ## 7. Two-speed fraud engine
 
@@ -383,7 +384,7 @@ read permission sees `[]` whether the row exists or not.
 (rejected: they went stale; the impossible-travel one rewrote an event that had
 already changed).
 
-**Evidence.** 74/74 breaks detected: access 9/9, payments 11/11, cards 12/12,
+**Evidence.** 78/78 breaks detected: access 13/13, payments 11/11, cards 12/12,
 detect 9/9, time travel 10/10, controls 23/23. The red teams found tests that
 passed with the bug in place (a user who could not read the PIN request table
 saw it empty either way) and tests that crashed instead of failing.
@@ -552,3 +553,44 @@ one copy of each partition, so Kafka's own fault tolerance is not shown and
 for its id; retrying means a new message. The
 ring sweep runs every 2 s from the consumer, not per message. Alerts can reach
 the topic twice after a bridge restart; dashboards drop repeated ids.
+
+## 22. Login attempt limit inside the record access, counted so that parallel attempts cannot skip it
+
+**Context.** Only the PIN had an attempt limit; a password could be guessed
+without end. The PIN's history (decision 6) suggested the limit could not live
+in the access definition, because a rejection that throws also undoes the
+counter.
+
+**Decision.** The `SIGNIN` of `DEFINE ACCESS banca` counts failures itself.
+Five wrong passwords in a row lock the account for 15 minutes, rejecting even
+the right one; a correct password resets the counter. It works because
+`SIGNIN` rejects by *returning* `NONE`, not by throwing, so the counter write
+is kept (checked on 3.2.4: two failures leave the counter at 2). An unknown
+email still runs one argon2 comparison, so response time does not reveal which
+emails have an account.
+
+**Attempts in parallel.** Every attempt writes the same `app_user` record, so
+snapshot isolation commits one and undoes the rest: 10 wrong passwords at once
+counted 1 and 9 came back as `400 signin query failed` instead of `404`. In the
+first version a correct password wrote nothing when the counter was 0, so a
+400 could only mean "wrong password": nine useful answers for one counted
+failure. Now a correct password always writes too (`last_login_at`), so a 400
+can come from a right or a wrong password and tells nothing. The answers that
+carry information, 404 and a token, are all counted.
+
+**Alternatives considered.** One record per failure (inserts never conflict,
+so a burst would never be undone; but the readers in a burst would not see each
+other's inserts, the write skew of snapshot isolation, and the whole burst
+would get through before the lock). A limit in front of the database, in a
+proxy (rejected: it is another piece, and the rule belongs with the data).
+
+**Evidence.** `access_test.py`, section "límite de intentos": 7 checks (4
+wrong keep the account open, a correct one resets, 5 lock, locked refuses the
+right password, 10 at once leave no uncounted 404, an unknown email is
+refused). `access_redteam.py` breaks it four ways (no counting, no lock check,
+no reset, success writing only after failures): 4/4 caught.
+
+**Consequences and costs.** Anyone who knows an email can lock that account
+for 15 minutes, the same trade-off as the PIN. A locked account and a wrong
+password get the same answer, so the app cannot tell the user why. Two real
+logins of the same user at the same instant can conflict; the second retries.
