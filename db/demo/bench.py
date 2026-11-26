@@ -6,7 +6,7 @@ Para cada detector compara lo que marca con lo plantado (la verdad):
   fallos     lo plantado que NO encuentra
   falsas     lo que marca sin haberse plantado (falsos positivos)
 
-    python3 db/demo/bench.py --truth /tmp/dx_truth.json [--rings fn::detect_rings_v2]
+    python3 db/demo/bench.py --truth /tmp/dx_truth.json [--rings 'fn::detect_rings(4)']
 """
 import argparse
 import json

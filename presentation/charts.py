@@ -110,9 +110,9 @@ def ibm():
 
 
 def redteam():
-    """«Don't trust the tool, test it»: roturas a propósito, cazadas por su prueba (78/78)."""
-    suites = [("access", 13), ("payments", 11), ("cards", 12), ("detect", 9),
-              ("time travel", 10), ("controls", 23)]
+    """«Don't trust the tool, test it»: roturas a propósito, cazadas por su prueba (86/86)."""
+    suites = [("access", 16), ("payments", 11), ("cards", 13), ("detect", 9),
+              ("time travel", 10), ("controls", 27)]
     fig, ax = plt.subplots(figsize=(12, 4.8))
     clean(ax)
     for i, (name, n) in enumerate(suites):
@@ -120,7 +120,7 @@ def redteam():
         ax.barh(y, n, height=0.55, color=c(VIOLET))
         ax.text(-0.4, y, name, size=18, ha="right", va="center", color=c(TEXT))
         ax.text(n + 0.4, y, f"{n}/{n}", family=MONO, size=18, va="center", color=c(TEXT))
-    ax.set_xlim(-6, 28)
+    ax.set_xlim(-6, 32)
     ax.set_ylim(0.3, len(suites) + 0.6)
     return save(fig, "redteam")
 

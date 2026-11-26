@@ -124,9 +124,15 @@ def concurrent_copies():
     firsts = sum(1 for r in replies if not r["duplicate"])
     reused = db.last(f"RETURN fn::stream_apply('same-copy', {acc('jose')}, {acc('sara')}, "
                      f"7.00dec, 'transfer', 'test');")
-    ok = paid == 1 and firsts == 1 and reused["reason"] == "id_reused"
+    kind_only = db.last(f"RETURN fn::stream_apply('same-copy', {acc('jose')}, {acc('sara')}, "
+                        f"5.00dec, 'bizum', 'test');")
+    card = db.last(f"RETURN fn::stream_apply('as-card', {acc('jose')}, {acc('sara')}, "
+                   f"5.00dec, 'card', 'test');")
+    ok = (paid == 1 and firsts == 1 and reused["reason"] == "id_reused"
+          and kind_only["reason"] == "id_reused" and card["reason"] == "invalid_kind")
     print(f"copias a la vez cobradas {paid} vez de 8 llamadas; id reutilizado con otro importe: "
-          f"{reused['reason']}  {'ok' if ok else 'FALLO'}")
+          f"{reused['reason']}, solo con otro tipo: {kind_only['reason']}; tipo `card` desde fuera: "
+          f"{card['reason']}  {'ok' if ok else 'FALLO'}")
     return ok
 
 

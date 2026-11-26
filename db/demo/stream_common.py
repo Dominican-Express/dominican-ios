@@ -84,6 +84,7 @@ def acc(name):
 
 _KEY = re.compile(r"[A-Za-z0-9_-]{1,64}")
 _AMOUNT = re.compile(r"[0-9]{1,9}(\.[0-9]{1,2})?")
+KINDS = ("transfer", "bizum", "payroll")   # lo que llega de fuera (txn.kind)
 
 
 def money(s):
@@ -111,4 +112,7 @@ def parse(raw):
         money(m.get("amount"))
     except ValueError:
         raise ValueError("bad_amount")
+    m.setdefault("kind", "transfer")   # los mensajes sin tipo son transferencias
+    if m["kind"] not in KINDS:
+        raise ValueError("bad_kind")
     return m

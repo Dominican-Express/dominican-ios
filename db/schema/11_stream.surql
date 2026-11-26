@@ -55,6 +55,11 @@ DEFINE FUNCTION OVERWRITE fn::stream_apply($key: string, $from: record<account>,
             'same_account'
         } ELSE IF $amount <= 0dec {
             'invalid_amount'
+        } ELSE IF $kind NOT IN ['transfer', 'bizum', 'payroll'] {
+            -- Lo que puede llegar de fuera. `card` y `fee` los crea el banco;
+            -- sin esto, el ASSERT de txn.kind lanzaría y el consumidor se
+            -- quedaría reintentando el mismo mensaje.
+            'invalid_kind'
         } ELSE IF $f.currency != $t.currency {
             'currency_mismatch'
         } ELSE IF $f.frozen_at != NONE {

@@ -77,6 +77,11 @@ CASES = [
      "PERMISSIONS FOR select, update WHERE customer = $auth.customer;",
      "PERMISSIONS FOR select, update WHERE customer = $auth.customer FOR create FULL;",
      "ana no puede fabricarse avisos"),
+    ("desbloquear sin PIN",
+     "08_cards.surql",
+     "IF $b.blocked = false AND ($auth.verified_until = NONE OR $auth.verified_until <= time::now()) {",
+     "IF false {",
+     "desbloquear sin haber verificado el PIN se rechaza (403)"),
 ]
 
 if __name__ == "__main__":

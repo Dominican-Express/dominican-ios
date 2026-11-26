@@ -94,6 +94,27 @@ CASES = [
      "RETURN (SELECT VALUE id FROM ONLY $acc);\n} PERMISSIONS NONE;",
      "RETURN (SELECT VALUE id FROM ONLY $acc);\n} PERMISSIONS FULL;",
      "un cliente no puede liberarse a sí mismo"),
+    ("la tarjeta cobra aunque la cuenta esté congelada",
+     "08_cards.surql",
+     "} ELSE IF (SELECT VALUE frozen_at FROM ONLY $c.account) != NONE {",
+     "} ELSE IF false {",
+     "con la tarjeta desbloqueada, la cuenta congelada tampoco paga con ella"),
+    ("el cliente lee las alertas de blanqueo",
+     "02_graph.surql",
+     "        AND kind IN ['impossible_travel', 'velocity', 'low_balance'];",
+     ";",
+     "…ni puede leer la alerta de anillo que la congeló"),
+
+    ("el cliente lee `frozen_by`",
+     "10_controls.surql",
+     "TYPE option<record<fraud_alert>> PERMISSIONS FOR select NONE;",
+     "TYPE option<record<fraud_alert>>;",
+     "…ni el `frozen_by` de su cuenta, que lleva el motivo en el id"),
+    ("la auditoría de la cuenta culpa al cliente",
+     "10_controls.surql",
+     "    THEN fn::audit_system('account', $value.id, $event,",
+     "    THEN fn::audit('account', $value.id, $event,",
+     "cinco envíos seguidos ponen la cuenta en revisión, y la auditoría no culpa a marta"),
 ]
 
 if __name__ == "__main__":

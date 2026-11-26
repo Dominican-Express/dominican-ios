@@ -69,7 +69,7 @@ it on disk where it can be read again ([db/STREAMING.md](db/STREAMING.md)).
 
 ## How results are verified
 
-![Every suite also run against code broken on purpose: 78 of 78 breaks caught](docs/figures/redteam.png)
+![Every suite also run against code broken on purpose: 86 of 86 breaks caught](docs/figures/redteam.png)
 
 Each suite is also run against the code broken on purpose, so every test has been seen failing,
 and every break is caught.
@@ -82,7 +82,7 @@ and every break is caught.
 | Node A killed through HAProxy | 40 of 40 writes OK in three runs, slowest 52 ms |
 | TiKV leader killed | 5 to 7 writes fail, then OK again 9 to 13 s after the kill; nothing lost |
 | Kafka consumer killed mid-stream | 60 of 60 payments applied once; without the message id 61, committing first 59 |
-| Tests | 6 suites; 78 of 78 breaks caught |
+| Tests | 6 suites; 86 of 86 breaks caught |
 
 ## Usage
 

@@ -71,6 +71,15 @@ check("…sin decirle por qué (prohibido avisar al sospechoso)",
 r = root_last("RETURN fn::transfer(account:marta, account:sara, 10dec);")
 check("tampoco llamando a fn::transfer directamente (segunda capa)",
       isinstance(r, str) and "account_frozen" in r, r)
+r = last(marta, "SELECT VALUE kind FROM fraud_alert;")
+check("…ni puede leer la alerta de anillo que la congeló", isinstance(r, list) and "mule_ring" not in r, r)
+r = last(marta, "SELECT * FROM account:marta;")
+check("…ni el `frozen_by` de su cuenta, que lleva el motivo en el id", "mule" not in str(r), r)
+root_last("UPDATE card:luis SET blocked = false;")
+p = one("RETURN fn::charge_card(card:luis, 50dec, 'Tienda', (-3.70, 40.41));")
+check("con la tarjeta desbloqueada, la cuenta congelada tampoco paga con ella",
+      isinstance(p, dict) and (p.get("status"), p.get("reason")) == ("declined", "account_frozen"), p)
+root_last("UPDATE card:luis SET blocked = true;")
 root_last("RETURN fn::transfer(account:sara, account:marta, 10dec);")
 after_in = float(one("SELECT VALUE balance FROM account:marta;"))
 check("el dinero que ENTRA en una cuenta congelada sí llega", after_in == before + 10, (before, after_in))
@@ -134,6 +143,14 @@ st, body = api(marta, "/transfers", {"id": "ctl-after-00001", "from": "account:m
 check("…marta vuelve a poder enviar", st == 201, (st, body))
 r = last(marta, "RETURN fn::release_account(account:marta, 'yo mismo');")
 check("un cliente no puede liberarse a sí mismo", isinstance(r, str) and "permission" in r, r)
+for i in range(2, 7):
+    api(marta, "/transfers", {"id": f"ctl-after-0000{i}", "from": "account:marta",
+                              "to_iban": "ES5555555555555555555555", "amount": "1"})
+rv = one("SELECT * FROM audit_log WHERE rec = account:marta AND after.review_at != NONE "
+         "AND before.review_at = NONE ORDER BY at DESC LIMIT 1;")
+check("cinco envíos seguidos ponen la cuenta en revisión, y la auditoría no culpa a marta",
+      rv is not None and rv.get("actor") is None and rv.get("via") == "system"
+      and rv.get("trigger") == "app_user:marta", rv)
 
 rec = root_last("RETURN fn::reconcile();")
 check("al final, el saldo materializado cuadra con el libro", rec == [], rec)
