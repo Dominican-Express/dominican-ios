@@ -57,7 +57,7 @@ prints `no overflow warnings` when every text fits its box.
 | 17 | 13 of 20; 20 mule_ring, 191 possible_ring; 8 IBM patterns | `demo2.mp4`, recorded on 2026-11-16 from `demo.sh race`, `demo.sh access`, `demo.sh aml`; [DEMO.md](../db/DEMO.md) parts A, C, D, G |
 | 18 | 6/54, 33/54, 1/12, 8/12; 100 %, 98.6 %, 100 %, 86.9 %; 4,487,133 to 381; 20 + 191 | [DATASET.md](../db/DATASET.md) |
 | 19 | 0 of 40; 9 to 12 s; 0 lost; 1.1 GB; 5 of 6 suites | [CLUSTER.md](../db/CLUSTER.md) |
-| 20 | 9, 11, 12, 9, 10, 23 = 74 of 74; 72 ms against 1.2 ms | `test_all.sh` (full run, 2026-11-13); [REFLECTION.md](../db/REFLECTION.md) |
+| 20 | 13, 11, 12, 9, 10, 23 = 78 of 78; 72 ms against 1.2 ms | `test_all.sh` (full run, 2026-11-26); [REFLECTION.md](../db/REFLECTION.md) |
 | 21 | 3.x renames, pinned 3.2.4; red team 6/10 in memory, 10/10 on SurrealKV; conflict as HTTP 400; 54 s to 1.0 s | [REFLECTION.md](../db/REFLECTION.md), "Limitations observed"; [INSTALL.md](../db/INSTALL.md), "Why pin 3.2.4"; [DECISIONS.md](../db/DECISIONS.md) 13; [FUNDAMENTALS.md](../db/FUNDAMENTALS.md) 3 |
 | 22 | good fit, not yet | [REFLECTION.md](../db/REFLECTION.md) |
 | 23 | do differently, next steps; 30 days against 5 to 10 years; PIN locks after 3 failures | [REFLECTION.md](../db/REFLECTION.md), "What we would do differently"; [DECISIONS.md](../db/DECISIONS.md) 1, 2, 6 and 12 |

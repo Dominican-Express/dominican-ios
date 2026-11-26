@@ -9,11 +9,13 @@ permiso tiene su caso positivo, su caso negativo y su ataque.
 
 Requiere haber cargado 01_seed.surql. No modifica datos de negocio.
 """
+import json
 import os
 import sys
+import threading
 import time
 
-from session import api, last, root_last, signin
+from session import DB, NS, _post, api, last, root_last, signin
 
 FAILS = []
 
@@ -43,6 +45,15 @@ EN = {
     "alertas — cada titular ve las suyas y solo las suyas": "alerts: each holder sees their own, and only their own",
     "ana ve la alerta de viaje imposible de su tarjeta": "ana sees the impossible travel alert on her card",
     "ana no ve alertas de cuentas ajenas": "ana does not see alerts on other accounts",
+    "inicio de sesión — límite de intentos": "sign-in: attempt limit",
+    "4 contraseñas incorrectas: la cuenta sigue abierta": "4 wrong passwords: the account stays open",
+    "un acierto pone el contador a cero": "a correct one resets the counter",
+    "5 incorrectas seguidas bloquean la cuenta": "5 wrong in a row lock the account",
+    "bloqueada, rechaza incluso la contraseña correcta": "locked, it refuses even the right password",
+    "un acierto deja constancia en la ficha (last_login_at)": "a correct one is recorded (last_login_at)",
+    "10 intentos a la vez: cada «incorrecta» que recibe el cliente queda contada":
+        "10 attempts at once: every 'wrong' the client receives is counted",
+    "un email que no existe se rechaza igual": "an unknown email is refused the same way",
     "caducidad — esperando 91 s": "expiry: waiting 91 s",
     "pasada la ventana, el PAN vuelve a ocultarse": "after the window, the card number is hidden again",
     "TODO EN ORDEN": "ALL CORRECT",
@@ -137,6 +148,56 @@ check("ana ve la alerta de viaje imposible de su tarjeta", "impossible_travel" i
 root_last("CREATE fraud_alert SET kind = 'structuring', score = 0.7, account = account:marta;")
 r = last(ana, "SELECT VALUE account FROM fraud_alert;")
 check("ana no ve alertas de cuentas ajenas", "account:marta" not in r, r)
+
+print("\n" + T("inicio de sesión — límite de intentos"))
+
+
+def signin_status(email, password):
+    res = _post("/signin", json.dumps({"ns": NS, "db": DB, "ac": "banca",
+                                       "email": email, "pass": password}),
+                {"Content-Type": "application/json"})
+    return res.get("http_error", 200) if isinstance(res, dict) else res
+
+
+def try_signin(email, password):
+    try:
+        return signin(email, password) is not None
+    except RuntimeError:
+        return False
+
+
+fails = [try_signin("marta@dominican.test", "mal") for _ in range(4)]
+check("4 contraseñas incorrectas: la cuenta sigue abierta",
+      not any(fails) and try_signin("marta@dominican.test", "demo-marta"), fails)
+# Si el acierto no pusiera el contador a cero, estos 4 harían 8 y bloquearían.
+fails = [try_signin("marta@dominican.test", "mal") for _ in range(4)]
+check("un acierto pone el contador a cero", try_signin("marta@dominican.test", "demo-marta"), fails)
+fails = [try_signin("marta@dominican.test", "mal") for _ in range(5)]
+r = root_last("SELECT VALUE login_locked_until FROM ONLY app_user:marta;")
+check("5 incorrectas seguidas bloquean la cuenta", not any(fails) and r is not None, r)
+check("bloqueada, rechaza incluso la contraseña correcta",
+      not try_signin("marta@dominican.test", "demo-marta"), "aceptada")
+# Intentos a la vez: el aislamiento deshace los que chocan (400). Lo que no
+# puede pasar es que el cliente reciba un «incorrecta» (404) que no se cuente.
+ok = root_last("SELECT VALUE last_login_at FROM ONLY app_user:luis;")
+check("un acierto deja constancia en la ficha (last_login_at)", ok is not None, ok)
+answers = []
+
+
+def burst(pw):
+    answers.append(signin_status("luis@dominican.test", pw))
+
+
+threads = [threading.Thread(target=burst, args=("mal",)) for _ in range(10)]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()
+r = root_last("SELECT VALUE login_failures FROM ONLY app_user:luis;")
+check("10 intentos a la vez: cada «incorrecta» que recibe el cliente queda contada",
+      answers.count(404) == r and r >= 1, (sorted(answers), r))
+check("un email que no existe se rechaza igual", not try_signin("nadie@dominican.test", "x"), "aceptado")
+root_last("UPDATE app_user SET login_failures = 0, login_locked_until = NONE;")
 
 if "--expiry" in sys.argv:
     print("\n" + T("caducidad — esperando 91 s"))

@@ -23,7 +23,7 @@ Pruebas de permisos, que se conectan como clientes y no como root (solo
 biblioteca estándar):
 
 ```sh
-python3 db/demo/access_test.py       # 18 comprobaciones; --expiry espera la caducidad
+python3 db/demo/access_test.py       # 25 comprobaciones; --expiry espera la caducidad
 python3 db/demo/access_redteam.py    # rompe cada protección y exige que su test caiga
 python3 db/demo/payments_test.py     # API de pagos; --race añade la concurrencia
 python3 db/demo/payments_redteam.py  # rompe cada protección de la API, sobre el fichero real
@@ -196,13 +196,14 @@ hasta dar con la buena, y cada fallo enseña algo de SurrealDB:
 
 ### Cómo se ha probado
 
-`db/demo/access_test.py` actúa como ana y como luis: 18 comprobaciones entre
+`db/demo/access_test.py` actúa como ana, luis y marta: 25 comprobaciones entre
 casos positivos, negativos y ataques (alargarse la ventana a mano, cambiarse de
 titular, pedir la verificación de otro, leer hashes, ver cuentas o alertas
-ajenas). Con `--expiry` espera 91 s y comprueba que el PAN vuelve a ocultarse.
+ajenas, adivinar la contraseña: 5 fallos bloquean la cuenta 15 minutos,
+también con 10 intentos a la vez; DECISIONS.md, 22). Con `--expiry` espera 91 s y comprueba que el PAN vuelve a ocultarse.
 
 Por eso `db/demo/access_redteam.py` rompe adrede cada protección sobre una base limpia y comprueba que el
-test que la vigila cae: **9/9 roturas detectadas**.
+test que la vigila cae: **13/13 roturas detectadas**.
 
 Hacerlo reveló dos tests que habrían pasado con el fallo puesto: el usuario no
 tenía permiso de lectura sobre la tabla de peticiones de PIN de la versión con
@@ -589,8 +590,6 @@ orden.
 - Comparativa medida de la detección de anillos en SurrealQL frente a un CTE
   recursivo equivalente en PostgreSQL, incluyendo los casos donde SurrealDB
   no gana.
-- Límite de intentos también en el inicio de sesión: hoy la contraseña no lo
-  tiene, solo el PIN.
 - El motor avisa de que el permiso del campo `customer.bizum_account` tiene
   «dependencias opacas» y obliga a evaluar todos los campos calculados de cada
   fila. Revisar la expresión.

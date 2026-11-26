@@ -4,7 +4,7 @@
     uv run --with-requirements db/demo/requirements.txt python db/demo/demo_client.py \
         [--url ws://127.0.0.1:8099/rpc] [--db live]
 
-Requiere el esquema y la semilla cargados en esa base (`domex up`, o
+Requiere el esquema y la semilla cargados en esa base (`demo.sh up`, o
 apply.sh + 01_seed.surql). Cada ejecución usa ids nuevos, así que se puede
 repetir. La salida va en inglés: es lo que se enseña en clase.
 

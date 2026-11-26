@@ -110,8 +110,8 @@ def ibm():
 
 
 def redteam():
-    """«Don't trust the tool, test it»: roturas a propósito, cazadas por su prueba (74/74)."""
-    suites = [("access", 9), ("payments", 11), ("cards", 12), ("detect", 9),
+    """«Don't trust the tool, test it»: roturas a propósito, cazadas por su prueba (78/78)."""
+    suites = [("access", 13), ("payments", 11), ("cards", 12), ("detect", 9),
               ("time travel", 10), ("controls", 23)]
     fig, ax = plt.subplots(figsize=(12, 4.8))
     clean(ax)
