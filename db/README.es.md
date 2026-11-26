@@ -23,7 +23,7 @@ Pruebas de permisos, que se conectan como clientes y no como root (solo
 biblioteca estándar):
 
 ```sh
-python3 db/demo/access_test.py       # 25 comprobaciones; --expiry espera la caducidad
+python3 db/demo/access_test.py       # 29 comprobaciones; --expiry espera la caducidad
 python3 db/demo/access_redteam.py    # rompe cada protección y exige que su test caiga
 python3 db/demo/payments_test.py     # API de pagos; --race añade la concurrencia
 python3 db/demo/payments_redteam.py  # rompe cada protección de la API, sobre el fichero real
@@ -196,14 +196,14 @@ hasta dar con la buena, y cada fallo enseña algo de SurrealDB:
 
 ### Cómo se ha probado
 
-`db/demo/access_test.py` actúa como ana, luis y marta: 25 comprobaciones entre
+`db/demo/access_test.py` actúa como ana, luis y marta: 29 comprobaciones entre
 casos positivos, negativos y ataques (alargarse la ventana a mano, cambiarse de
 titular, pedir la verificación de otro, leer hashes, ver cuentas o alertas
 ajenas, adivinar la contraseña: 5 fallos bloquean la cuenta 15 minutos,
 también con 10 intentos a la vez; DECISIONS.md, 22). Con `--expiry` espera 91 s y comprueba que el PAN vuelve a ocultarse.
 
 Por eso `db/demo/access_redteam.py` rompe adrede cada protección sobre una base limpia y comprueba que el
-test que la vigila cae: **13/13 roturas detectadas**.
+test que la vigila cae: **16/16 roturas detectadas**.
 
 Hacerlo reveló dos tests que habrían pasado con el fallo puesto: el usuario no
 tenía permiso de lectura sobre la tabla de peticiones de PIN de la versión con
@@ -310,7 +310,7 @@ tipo ([corregido uno en la 3.1](https://surrealdb.com/releases/3.1),
 app pide las no leídas al abrir y al reconectar: un aviso que no llegue en
 directo aparece igualmente al abrir la app, aunque más tarde.
 
-`demo/cards_test.py`: **41 comprobaciones**. `demo/cards_redteam.py`: **12/12**.
+`demo/cards_test.py`: **44 comprobaciones**. `demo/cards_redteam.py`: **13/13**.
 
 ## Volumen: lo que solo se ve con datos de verdad
 
@@ -467,11 +467,15 @@ herramienta de investigación rápida, y la protección real son tres piezas
 
    Congelar bloquea las salidas; lo que entra sigue llegando. La API
    responde `423 account_frozen` sin decir por qué: avisar a un sospechoso
-   de blanqueo de que se le investiga está prohibido (*tipping-off*). Hay una
-   segunda capa en `fn::transfer` y `fn::debit_at` por si alguien llama a la
-   función directamente. Liberar es `fn::release_account(cuenta, nota)`, solo
-   para el equipo antifraude, y queda auditado. Las tarjetas no se desbloquean
-   solas.
+   de blanqueo de que se le investiga está prohibido (*tipping-off*). Por lo
+   mismo, el cliente no lee las alertas de blanqueo de su cuenta (anillo,
+   estructuración, aparato compartido) ni `frozen_by`, cuyo id dice el motivo;
+   solo las que le protegen (viaje imposible, ráfaga, saldo bajo). Hay una
+   segunda capa en `fn::transfer`, `fn::debit_at` y `fn::charge_card`, por si
+   alguien llama a la función directamente o desbloquea la tarjeta. Liberar es
+   `fn::release_account(cuenta, nota)`, solo para el equipo antifraude, y queda
+   auditado. Las tarjetas no se desbloquean solas, y desbloquear una exige el
+   PIN recién verificado.
 
 **La demo**, tras `demo.sh attack`: `demo.sh coverup` (`coverup.py`) hace que
 Marta, una mula, intente borrar el rastro como cliente. Intenta borrar el
@@ -486,8 +490,8 @@ que había antes, y `fn::investigate` reconstruye la alerta. En un banco la
 auditoría se copia en caliente fuera de la base, a un almacenamiento que no se
 puede reescribir (WORM), con la retención legal. Esa copia no está montada.
 
-Pruebas: `controls_test.py`, **31 comprobaciones**; `controls_redteam.py`,
-**23/23**. La prueba en rojo reveló dos fallos de las propias pruebas: una
+Pruebas: `controls_test.py`, **35 comprobaciones**; `controls_redteam.py`,
+**27/27**. La prueba en rojo reveló dos fallos de las propias pruebas: una
 consulta sin filas hacía reventar el test antes de decir qué fallaba, y una
 comprobación de la auditoría encontraba otra fila que también traía la fecha
 de congelación.

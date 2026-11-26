@@ -158,7 +158,7 @@ It starts its own temporary server on port 8098 (it must be free), so your demo
 data is not touched. The per-suite lines are in Spanish: each suite prints
 `TODO EN ORDEN` ("all in order"), and each red-team run prints
 `N/N roturas detectadas por su prueba` ("N of N breaks caught by its test");
-the full run adds up to 78/78. Expected last line: `ALL PASSED`. A red-team run breaks the schema on
+the full run adds up to 86/86. Expected last line: `ALL PASSED`. A red-team run breaks the schema on
 purpose and checks that its test catches it (see `DECISIONS.md`).
 
 The 3-node cluster is optional and needs one more tool, TiUP:

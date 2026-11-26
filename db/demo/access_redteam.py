@@ -56,8 +56,8 @@ CASES = [
 
     ("alertas legibles por cualquiera",
      "02_graph.surql",
-     "DEFINE TABLE OVERWRITE fraud_alert SCHEMALESS TYPE NORMAL\n    PERMISSIONS FOR select WHERE account IN $auth.customer->owns->account;",
-     "DEFINE TABLE OVERWRITE fraud_alert SCHEMALESS TYPE NORMAL\n    PERMISSIONS FOR select FULL;",
+     "PERMISSIONS FOR select WHERE account IN $auth.customer->owns->account\n        AND kind IN",
+     "PERMISSIONS FOR select WHERE true\n        AND kind IN",
      "ana no ve alertas de cuentas ajenas"),
     ("el inicio de sesión no cuenta los fallos",
      "06_access.surql",
@@ -83,6 +83,23 @@ CASES = [
      "IF $u.login_failures != 0 { UPDATE $u.id SET login_failures = 0, login_locked_until = NONE };",
      "un acierto deja constancia en la ficha (last_login_at)"),
 
+    ("viaje imposible en segundos enteros",
+     "04_events.surql",
+     "LET $s = duration::millis($after.at - $prev.at) / 1000f;",
+     "LET $s = duration::secs($after.at - $prev.at);",
+     "2,4 km en 9,9 s son 242 m/s: por debajo del techo, sin alerta"),
+
+    ("viaje imposible ignora los cobros a la misma hora",
+     "04_events.surql",
+     "WHERE card = $card AND at <= $at AND id != $after.id",
+     "WHERE card = $card AND at < $at",
+     "…y a la misma hora exacta"),
+
+    ("viaje imposible sin distancia mínima",
+     "04_events.surql",
+     "IF $m > 1000 AND ($s <= 0 OR ($m / $s) > 250) {",
+     "IF $s > 0 AND ($m / $s) > 250 {",
+     "dos terminales a 300 m y 1 s no son un viaje"),
 ]
 
 if __name__ == "__main__":

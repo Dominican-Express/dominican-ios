@@ -47,12 +47,12 @@ def apply(db, mode, m, source):
     if mode == "no-dedup":
         try:
             db.last(f"RETURN fn::transfer({acc(m['from'])}, {acc(m['to'])}, "
-                    f"{money(m['amount'])}, 'transfer');")
+                    f"{money(m['amount'])}, {json.dumps(m['kind'])});")
             return "done", None, False
         except RuntimeError as e:
             return "rejected", str(e)[:60], False
     r = db.last(f"RETURN fn::stream_apply({json.dumps(m['id'])}, {acc(m['from'])}, "
-                f"{acc(m['to'])}, {money(m['amount'])}, 'transfer', {json.dumps(source)});")
+                f"{acc(m['to'])}, {money(m['amount'])}, {json.dumps(m['kind'])}, {json.dumps(source)});")
     return r["status"], r.get("reason"), r["duplicate"]
 
 

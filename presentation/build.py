@@ -453,10 +453,10 @@ machine run on one node, and the cluster proves the failover.""")
     ], size=20, first_col_bold=False)
 
     # ------------------------------------------------------------------ Javier
-    s = frame(prs, next(num), "Don't trust the tool, test it", "78 of 78 deliberate breaks caught", notes="""
+    s = frame(prs, next(num), "Don't trust the tool, test it", "86 of 86 deliberate breaks caught", notes="""
 JAVIER. Now a critical look. Our main method: a test you have never seen fail is not
 watching anything. So every protection was broken on purpose, and its test had to
-catch it: 78 of 78 caught. Testing like this found real problems in SurrealDB: a
+catch it: 86 of 86 caught. Testing like this found real problems in SurrealDB: a
 time-travel bug that brought deleted records back, which could produce false evidence
 against an innocent; live notifications lost silently when two clients listen; and a
 query planner that ignored our index, 72 milliseconds against 1.2. Every one became a

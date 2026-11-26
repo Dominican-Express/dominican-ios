@@ -39,23 +39,29 @@ WHEN $event = "CREATE" AND $after.amount < 0dec
 -- VIAJE IMPOSIBLE: dos pagos de la misma tarjeta a velocidad no física.
 -- geo::distance devuelve METROS (haversine). 250 m/s ~ 900 km/h, techo de
 -- un avión comercial.
+--  - Milisegundos, no `duration::secs`: redondea hacia abajo, y dos cobros a
+--    0,4 s daban 0 s y se saltaban, justo el caso más claro de tarjeta clonada.
+--  - `at <= $at` y no `<`: dos cobros con la misma hora también cuentan (el
+--    tiempo es 0, la velocidad infinita).
+--  - Al menos 1 km: dos terminales de la misma calle a 1 s darían más de
+--    250 m/s y no son ningún viaje.
 DEFINE EVENT OVERWRITE impossible_travel ON card_payment
 WHEN $event = "CREATE" THEN {
     LET $card = $after.card;
     LET $at = $after.at;
     LET $prev = (SELECT * FROM card_payment
-                 WHERE card = $card AND at < $at
+                 WHERE card = $card AND at <= $at AND id != $after.id
                  ORDER BY at DESC LIMIT 1)[0];
     IF $prev != NONE {
         LET $m = geo::distance($prev.loc, $after.loc);
-        LET $s = duration::secs($after.at - $prev.at);
-        IF $s > 0 AND ($m / $s) > 250 {
+        LET $s = duration::millis($after.at - $prev.at) / 1000f;
+        IF $m > 1000 AND ($s <= 0 OR ($m / $s) > 250) {
             -- `account` además de `card`: el permiso de lectura de fraud_alert
             -- va por cuenta. Sin él, el titular no vería la alerta sobre su
             -- propia tarjeta.
             CREATE fraud_alert SET kind = 'impossible_travel', score = 0.9,
                 card = $after.card, account = $after.card.account,
-                detail = { km: $m / 1000, secs: $s, kmh: ($m / $s) * 3.6 };
+                detail = { km: $m / 1000, secs: $s, kmh: IF $s > 0 { ($m / $s) * 3.6 } ELSE { NONE } };
         };
     };
 };

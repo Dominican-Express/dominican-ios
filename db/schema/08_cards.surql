@@ -31,8 +31,13 @@ DEFINE FUNCTION OVERWRITE fn::charge_card($card: record<card>, $amount: decimal,
     LET $spent = math::sum(SELECT VALUE amount FROM card_payment
                            WHERE card = $card AND status = 'approved'
                              AND at >= time::group($when, 'month') AND at <= $when);
+    -- Cuenta congelada por fraude (10_controls): la tarjeta tampoco gasta. Sin
+    -- esto, desbloquear la tarjeta bastaba para sacar dinero de una cuenta
+    -- congelada; fn::transfer y fn::debit_at ya lo miraban.
     LET $reason = IF $c.blocked {
             'card_blocked'
+        } ELSE IF (SELECT VALUE frozen_at FROM ONLY $c.account) != NONE {
+            'account_frozen'
         } ELSE IF $spent + $amount > $c.monthly_limit {
             'monthly_limit_exceeded'
         } ELSE IF fn::balance($c.account) < $amount {
@@ -77,6 +82,10 @@ DEFINE FUNCTION OVERWRITE fn::own_card($b: any) {
 } PERMISSIONS NONE;
 
 -- POST /cards/block   { card, blocked: true|false }
+-- Bloquear se puede siempre: es lo que haces si pierdes la tarjeta. Desbloquear
+-- exige haber verificado el PIN (/verify-pin, ventana de 90 s): con solo la
+-- sesión, quien te robe el móvil desbloquearía la tarjeta que el banco bloqueó
+-- por un viaje imposible.
 DEFINE API OVERWRITE "/cards/block" FOR post
     MIDDLEWARE api::res::body("json")
     PERMISSIONS WHERE $auth.id != NONE
@@ -85,6 +94,9 @@ DEFINE API OVERWRITE "/cards/block" FOR post
         LET $c = fn::own_card($b);
         IF $c.status != NONE { RETURN $c };
         IF type::is_bool($b.blocked) = false { RETURN fn::bad_request('invalid_blocked') };
+        IF $b.blocked = false AND ($auth.verified_until = NONE OR $auth.verified_until <= time::now()) {
+            RETURN { status: 403, body: { error: 'pin_required' } }
+        };
         UPDATE $c.id SET blocked = $b.blocked;
         RETURN { status: 200, body: { card: record::id($c.id), blocked: $b.blocked } };
     };

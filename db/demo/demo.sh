@@ -141,7 +141,7 @@ case "$1" in
   reset)
     ./apply.sh > /dev/null
     ./surql.sh 01_seed.surql > /dev/null
-    echo "database ready: schema loaded, 5 customers, 2 cards, 2 app users"
+    echo "database ready: schema loaded, 5 customers, 2 cards, 3 app users"
     ;;
   listen)
     DEMO_LANG=en exec uv run --quiet --with websockets python3 live_listener.py

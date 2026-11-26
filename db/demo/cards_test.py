@@ -97,6 +97,14 @@ st, b = api(marta, "/cards/block", {"card": "card:ana", "blocked": True})
 check("marta tampoco, y recibe lo mismo que si no existiera", (st, b) == (404, {"error": "card_not_found"}), (st, b))
 check("…la tarjeta sigue desbloqueada", one("SELECT VALUE blocked FROM card:ana;") is False,
       one("SELECT VALUE blocked FROM card:ana;"))
+api(luis, "/cards/block", {"card": "card:luis", "blocked": True})
+st, b = api(luis, "/cards/block", {"card": "card:luis", "blocked": False})
+check("desbloquear sin haber verificado el PIN se rechaza (403)", (st, b) == (403, {"error": "pin_required"}), (st, b))
+check("…y la tarjeta sigue bloqueada", one("SELECT VALUE blocked FROM card:luis;") is True,
+      one("SELECT VALUE blocked FROM card:luis;"))
+api(luis, "/verify-pin", {"pin": "5678"})
+st, b = api(luis, "/cards/block", {"card": "card:luis", "blocked": False})
+check("…con el PIN verificado, sí (200)", (st, b.get("blocked")) == (200, False), (st, b))
 r = last(ana, "UPDATE card:ana SET blocked = true;")
 check("ana no puede tocar la tarjeta salvo por el endpoint", one("SELECT VALUE blocked FROM card:ana;") is False, r)
 

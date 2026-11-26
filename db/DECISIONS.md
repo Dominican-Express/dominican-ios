@@ -31,6 +31,7 @@ explained in [FUNDAMENTALS.md](FUNDAMENTALS.md); the critical assessment is in
 | 20 | HAProxy in front of the SurrealDB nodes, health-checking the node and not the storage |
 | 21 | Kafka at the edges for streaming, not Redis Streams |
 | 22 | Login attempt limit inside the record access, counted so that parallel attempts cannot skip it |
+| 23 | Impossible travel in milliseconds, with a minimum distance; datetimes in indexes do not order fractions |
 
 ## 1. SurrealDB instead of the alternatives
 
@@ -165,8 +166,8 @@ than 90 seconds old.
 **Alternatives considered.** Permission tables joined at query time; checks in
 a backend (rejected with decision 2).
 
-**Evidence.** `access_test.py`: 25 checks acting as Ana, Luis and Marta,
-including attacks and the login limit (decision 22). `access_redteam.py`: 13/13. The `holder` condition fixed a real flaw of
+**Evidence.** `access_test.py`: 29 checks acting as Ana, Luis and Marta,
+including attacks and the login limit (decision 22). `access_redteam.py`: 16/16. The `holder` condition fixed a real flaw of
 the first version: a verified joint owner would have seen the other owner's
 PAN.
 
@@ -192,8 +193,8 @@ The PIN travels in the request and is never stored.
    attempts.
 3. `DEFINE API`: rejects by returning 401, so the failure is kept. Chosen.
 
-**Evidence.** `cards_test.py`: 41 checks (PIN limit, cards, notifications);
-`cards_redteam.py`: 12/12.
+**Evidence.** `cards_test.py`: 44 checks (PIN limit, cards, notifications,
+unblocking only after the PIN); `cards_redteam.py`: 13/13.
 
 **Consequences and costs.** The password login got the same kind of limit
 later, inside the record access itself (decision 22).
@@ -284,15 +285,21 @@ hurt real people.
 Freezing blocks outgoing money; incoming money still arrives. The API
 answers `423 account_frozen` without saying why: telling a suspect of
 money laundering that they are being investigated is prohibited (art. 24 of
-Spanish Ley 10/2010). A second check inside `fn::transfer` and `fn::debit_at`
-covers direct calls. Releasing is `fn::release_account(account, note)`,
-fraud team only, and audited; cards do not unblock themselves.
+Spanish Ley 10/2010). For the same reason the customer cannot read the
+money-laundering alerts on their account (ring, structuring, shared device)
+nor `frozen_by`, whose id names the reason; they only see the alerts that
+protect them (impossible travel, burst of charges, low balance). A second
+check inside `fn::transfer`, `fn::debit_at` and `fn::charge_card` covers
+direct calls and the card: without it, unblocking the card was enough to
+spend from a frozen account. Releasing is `fn::release_account(account,
+note)`, fraud team only, and audited; cards do not unblock themselves, and
+unblocking one needs a fresh PIN check (`/cards/block`).
 
 **Alternatives considered.** Freeze on every alert (rejected: four people
 punished for sharing a family tablet). Tell the customer the reason (rejected:
 illegal).
 
-**Evidence.** `controls_test.py`: 31 checks; `controls_redteam.py`: 23/23.
+**Evidence.** `controls_test.py`: 35 checks; `controls_redteam.py`: 27/27.
 
 **Consequences and costs.** Decisions depend on detector precision, which is
 why the uncertain tier goes to an analyst (decision 15).
@@ -308,7 +315,10 @@ cannot touch a ledger entry. Unlinking a device goes through
 shared-device detector still counts it. Every change to edges, devices, cards,
 accounts and customers writes an `audit_log` row with before, after, when and
 who (`actor`, `via`), written by events, so there is no path around it.
-The PAN, CVV and NIF never enter it (analysts read it). Balance changes are not
+A customer cannot write an account, so when one changes during their request
+(a burst of transfers puts it under review) the row says `via = system`,
+`actor` empty and `trigger` = that user: the bank's rule made the change, the
+customer only caused it. The PAN, CVV and NIF never enter it (analysts read it). Balance changes are not
 audited: they are already in the immutable ledger and in `payment_order`.
 
 **Alternatives considered.** Soft-delete flags set by the client (bypassable);
@@ -384,8 +394,8 @@ read permission sees `[]` whether the row exists or not.
 (rejected: they went stale; the impossible-travel one rewrote an event that had
 already changed).
 
-**Evidence.** 78/78 breaks detected: access 13/13, payments 11/11, cards 12/12,
-detect 9/9, time travel 10/10, controls 23/23. The red teams found tests that
+**Evidence.** 86/86 breaks detected: access 16/16, payments 11/11, cards 13/13,
+detect 9/9, time travel 10/10, controls 27/27. The red teams found tests that
 passed with the bug in place (a user who could not read the PIN request table
 saw it empty either way) and tests that crashed instead of failing.
 
@@ -594,3 +604,46 @@ no reset, success writing only after failures): 4/4 caught.
 for 15 minutes, the same trade-off as the PIN. A locked account and a wrong
 password get the same answer, so the app cannot tell the user why. Two real
 logins of the same user at the same instant can conflict; the second retries.
+
+## 23. Impossible travel in milliseconds, with a minimum distance; datetimes in indexes do not order fractions
+
+**Context.** A second review read the detector as an attacker would: a cloned
+card charged in Madrid and New York 0.4 s apart raised no alert.
+`duration::secs` rounds down, so 0.4 s became 0 and the `secs > 0` guard
+skipped the pair; two charges with the same timestamp were never compared
+(`at < $at`).
+
+**Decision.** The previous charge is the latest with `at <= $at` other than
+this one; time is measured in milliseconds; zero time counts as infinite
+speed; and the two places must be more than 1 km apart, so two terminals on
+the same street a second apart are no journey.
+
+**Engine bug found on the way.** The first test used whole-second literals and
+failed for a reason outside our code. With an index on a datetime, SurrealDB
+3.2.4 orders the values like their ISO text: inside one second the value
+without a fraction sorts after every value with one. Without the index the
+answer is right; memory and SurrealKV behave the same.
+```surql
+DEFINE TABLE p SCHEMAFULL; DEFINE FIELD at ON p TYPE datetime;
+DEFINE INDEX ps ON p FIELDS at;
+CREATE p:s0 SET at = d'2026-01-10T10:00:00Z';
+CREATE p:s05 SET at = d'2026-01-10T10:00:00.5Z';
+SELECT VALUE id FROM p WHERE at >= d'2026-01-01' ORDER BY at;  -- [p:s05, p:s0]
+SELECT VALUE id FROM p WHERE at < d'2026-01-10T10:00:00.4Z';   -- [] (p:s0 missing)
+```
+Real timestamps come from `time::now()` and carry a fraction, so the effect on
+live data is at most the first second of a window that starts on a whole
+second (`time::group(.., 'month')`). The tests use dates with a fraction.
+
+**Alternatives considered.** Storing timestamps as integers (milliseconds) to
+dodge the bug (rejected: every query and the time travel would lose the
+datetime type for an effect of one second). Keeping whole seconds and only
+dropping the `> 0` guard (rejected: 1.9 s read as 1 s doubles the speed; 2.4 km
+in 9.9 s is 242 m/s and must not alert, but 267 m/s at 9 s would).
+
+**Evidence.** `access_test.py`: half a second apart, same instant, 300 m in
+1 s, 2.4 km in 9.9 s. `access_redteam.py` breaks each of the three changes
+and its check falls.
+
+**Consequences and costs.** A real journey under 1 km is never flagged, which
+is fine: nobody clones a card to use it on the same street.

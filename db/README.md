@@ -63,7 +63,7 @@ db/
 | Mule rings, own data | naive cycle search 53 s and 75 false positives; forwarding rule 0.03 s and 0 (100 customers) |
 | Mule rings, IBM data | 6 of 54 laundering cycles found before calibration; 33 of 54 after (98.6 % precision), 8 of 12 on a held-out set (86.9 %) |
 | Prefilter | IBM's 4,487,133 transfers reduced to 381 without losing a ring |
-| Tests | 6 suites; every test also run against code broken on purpose: 78 of 78 breaks caught |
+| Tests | 6 suites; every test also run against code broken on purpose: 86 of 86 breaks caught |
 | Cluster | 3 TiKV: a crashed follower goes unnoticed; a crashed leader, 9 to 13 s of errors and no write lost |
 | Load balancer | HAProxy over 2 SurrealDB nodes: one node killed during 40 writes, 40 of 40 OK in three runs |
 

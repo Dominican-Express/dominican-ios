@@ -44,6 +44,12 @@ EN = {
     "…pero sí el de la suya": "but he does see his own",
     "alertas — cada titular ve las suyas y solo las suyas": "alerts: each holder sees their own, and only their own",
     "ana ve la alerta de viaje imposible de su tarjeta": "ana sees the impossible travel alert on her card",
+    "Madrid y Nueva York a medio segundo también es viaje imposible":
+        "Madrid and New York half a second apart is impossible travel too",
+    "…y a la misma hora exacta": "and at the very same instant",
+    "dos terminales a 300 m y 1 s no son un viaje": "two terminals 300 m and 1 s apart are no journey",
+    "2,4 km en 9,9 s son 242 m/s: por debajo del techo, sin alerta":
+        "2.4 km in 9.9 s is 242 m/s: under the ceiling, no alert",
     "ana no ve alertas de cuentas ajenas": "ana does not see alerts on other accounts",
     "inicio de sesión — límite de intentos": "sign-in: attempt limit",
     "4 contraseñas incorrectas: la cuenta sigue abierta": "4 wrong passwords: the account stays open",
@@ -145,7 +151,40 @@ root_last("""CREATE card_payment SET card = card:ana, amount = 10dec,
                  loc = (-74.0060, 40.7128), at = time::now() - 10m;""")
 r = last(ana, "SELECT VALUE kind FROM fraud_alert;")
 check("ana ve la alerta de viaje imposible de su tarjeta", "impossible_travel" in r, r)
-root_last("CREATE fraud_alert SET kind = 'structuring', score = 0.7, account = account:marta;")
+
+
+def travel_alerts():
+    return root_last("SELECT VALUE count() FROM fraud_alert WHERE card = card:luis "
+                     "AND kind = 'impossible_travel' GROUP ALL;") or [0]
+
+
+n0 = travel_alerts()[0]
+root_last("""CREATE card_payment SET card = card:luis, amount = 10dec, loc = (-3.7038, 40.4168),
+                 at = d'2026-01-10T10:00:00.100Z';
+             CREATE card_payment SET card = card:luis, amount = 10dec, loc = (-74.0060, 40.7128),
+                 at = d'2026-01-10T10:00:00.600Z';""")
+n1 = travel_alerts()[0]
+check("Madrid y Nueva York a medio segundo también es viaje imposible", n1 == n0 + 1, (n0, n1))
+root_last("""CREATE card_payment SET card = card:luis, amount = 10dec, loc = (-3.7038, 40.4168),
+                 at = d'2026-01-12T11:00:00.100Z';
+             CREATE card_payment SET card = card:luis, amount = 10dec, loc = (-74.0060, 40.7128),
+                 at = d'2026-01-12T11:00:00.100Z';""")
+n2 = travel_alerts()[0]
+check("…y a la misma hora exacta", n2 == n1 + 1, (n1, n2))
+root_last("""CREATE card_payment SET card = card:luis, amount = 10dec, loc = (-3.7038, 40.4168),
+                 at = d'2026-01-14T12:00:00.100Z';
+             CREATE card_payment SET card = card:luis, amount = 10dec, loc = (-3.7038, 40.4195),
+                 at = d'2026-01-14T12:00:01.100Z';""")
+n3 = travel_alerts()[0]
+check("dos terminales a 300 m y 1 s no son un viaje", n3 == n2, (n2, n3))
+root_last("""CREATE card_payment SET card = card:luis, amount = 10dec, loc = (-3.7038, 40.4168),
+                 at = d'2026-01-16T12:00:00.100Z';
+             CREATE card_payment SET card = card:luis, amount = 10dec, loc = (-3.7038, 40.43838),
+                 at = d'2026-01-16T12:00:10.000Z';""")
+n4 = travel_alerts()[0]
+check("2,4 km en 9,9 s son 242 m/s: por debajo del techo, sin alerta", n4 == n3, (n3, n4))
+# Un tipo que el titular sí puede ver: así solo lo tapa el filtro por cuenta.
+root_last("CREATE fraud_alert SET kind = 'velocity', score = 0.6, account = account:marta;")
 r = last(ana, "SELECT VALUE account FROM fraud_alert;")
 check("ana no ve alertas de cuentas ajenas", "account:marta" not in r, r)
 

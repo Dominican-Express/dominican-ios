@@ -131,12 +131,14 @@ by the write conflict and its retry sees the first. A rejection is final for
 its id, like a payment: replaying does not retry it, and a payment that should
 be tried again is a new message with a new id. A different message that
 reuses an id already seen is refused as `id_reused`: the record keeps a
-SHA-256 of the content, and a true copy has the same one. It is the mechanism of the
+SHA-256 of the content (accounts, amount and kind), and a true copy has the
+same one. It is the mechanism of the
 API's idempotent payment orders and of the materialised balance
 ([FUNDAMENTALS.md](FUNDAMENTALS.md), isolation).
 
 **Malformed messages.** A message that cannot be read (not JSON, a missing
-field, an amount like `1.`) goes to the topic `payments-dlq` with the reason
+field, an amount like `1.`, a kind other than `transfer`, `bizum` or
+`payroll`) goes to the topic `payments-dlq` with the reason
 in a header, and its offset is committed. Without that, Kafka would hand the
 same message back after every restart and the consumer would stop on it
 forever, with the whole partition behind it. If the copy to `payments-dlq`

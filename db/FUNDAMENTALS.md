@@ -304,8 +304,8 @@ DEFINE FIELD OVERWRITE pass ON app_user TYPE string PERMISSIONS FOR select NONE;
 ```
 
 Edges have permissions too, so a client traversal only crosses edges it can
-read. Tested by `demo/access_test.py` (25 checks) and broken on purpose by
-`demo/access_redteam.py` (13/13 breaks detected).
+read. Tested by `demo/access_test.py` (29 checks) and broken on purpose by
+`demo/access_redteam.py` (16/16 breaks detected).
 
 **Who runs with which permissions** matters for design (README.es.md, PIN section):
 

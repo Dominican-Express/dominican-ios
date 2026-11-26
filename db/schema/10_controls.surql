@@ -22,7 +22,9 @@
 -- ---------------------------------------------------------------------------
 -- 3. CONGELACIÓN: campos de la cuenta.
 DEFINE FIELD OVERWRITE frozen_at ON account TYPE option<datetime>;
-DEFINE FIELD OVERWRITE frozen_by ON account TYPE option<record<fraud_alert>>;
+-- `frozen_by` apunta a la alerta, y su id dice el motivo (`fraud_alert:['mule_ring', …]`):
+-- el cliente no lo lee, por lo mismo que no lee las alertas de blanqueo.
+DEFINE FIELD OVERWRITE frozen_by ON account TYPE option<record<fraud_alert>> PERMISSIONS FOR select NONE;
 DEFINE FIELD OVERWRITE review_at ON account TYPE option<datetime>;
 DEFINE FIELD OVERWRITE released_note ON account TYPE option<string>;
 
@@ -55,7 +57,8 @@ DEFINE EVENT OVERWRITE respond ON fraud_alert WHEN $event = 'CREATE' THEN {
 
 -- Liberar es cosa del equipo antifraude (PERMISSIONS NONE), con una nota, y
 -- queda en la auditoría. Las tarjetas NO se desbloquean solas: lo pide el
--- cliente, con su PIN (/cards/block).
+-- cliente, con su PIN (/cards/block). Mientras la cuenta siga congelada, una
+-- tarjeta desbloqueada tampoco cobra (fn::charge_card).
 DEFINE FUNCTION OVERWRITE fn::release_account($acc: record<account>, $note: string) {
     UPDATE $acc SET frozen_at = NONE, frozen_by = NONE, review_at = NONE, released_note = $note;
     RETURN (SELECT VALUE id FROM ONLY $acc);
@@ -92,7 +95,9 @@ DEFINE API OVERWRITE "/devices/unlink" FOR post
 -- Nadie la lee salvo el equipo antifraude (root / staff), y nadie la escribe
 -- salvo los eventos. Campos READONLY: una fila no se corrige, se añade otra.
 -- `actor` es el usuario de la app que hizo el cambio, o NONE si fue root o un
--- proceso del propio banco (el barrido); `via` dice cuál (`banca` = la app).
+-- proceso del propio banco (el barrido); `via` dice cuál (`banca` = la app,
+-- `system` = una regla del banco que saltó durante una petición de la app;
+-- entonces `trigger` dice qué usuario la provocó, sin culparle del cambio).
 DEFINE TABLE OVERWRITE audit_log SCHEMAFULL TYPE NORMAL PERMISSIONS NONE;
 DEFINE FIELD OVERWRITE tbl    ON audit_log TYPE string READONLY;
 DEFINE FIELD OVERWRITE rec    ON audit_log TYPE record READONLY;
@@ -101,6 +106,7 @@ DEFINE FIELD OVERWRITE before ON audit_log TYPE option<object> FLEXIBLE READONLY
 DEFINE FIELD OVERWRITE after  ON audit_log TYPE option<object> FLEXIBLE READONLY;
 DEFINE FIELD OVERWRITE actor  ON audit_log TYPE option<record> READONLY;
 DEFINE FIELD OVERWRITE via    ON audit_log TYPE string READONLY;
+DEFINE FIELD OVERWRITE trigger ON audit_log TYPE option<record> READONLY;
 DEFINE FIELD OVERWRITE at     ON audit_log TYPE datetime VALUE time::now() READONLY;
 DEFINE INDEX OVERWRITE audit_by_rec ON audit_log FIELDS rec, at;
 
@@ -109,6 +115,19 @@ DEFINE FUNCTION OVERWRITE fn::audit($tbl: string, $rec: record, $action: string,
     CREATE audit_log SET tbl = $tbl, rec = $rec, action = $action,
         before = $before, after = $after,
         actor = $auth.id, via = $session.ac ?? 'root';
+} PERMISSIONS NONE;
+
+-- Para lo que un cliente NO puede cambiar (la cuenta no tiene permiso de
+-- update): si cambia durante su petición, lo cambió una regla del banco. Caso
+-- real: cinco transferencias seguidas disparan `velocity`, que pone la cuenta
+-- en revisión DENTRO de la transacción del cliente; con fn::audit la fila
+-- decía que el cliente se había puesto en revisión a sí mismo.
+DEFINE FUNCTION OVERWRITE fn::audit_system($tbl: string, $rec: record, $action: string,
+                                           $before: option<object>, $after: option<object>) {
+    CREATE audit_log SET tbl = $tbl, rec = $rec, action = $action,
+        before = $before, after = $after,
+        actor = NONE, via = IF $session.ac = NONE { 'root' } ELSE { 'system' },
+        trigger = $auth.id;
 } PERMISSIONS NONE;
 
 -- Qué se audita. Lo que mueve dinero ya está en el libro (inmutable) y en
@@ -136,7 +155,7 @@ DEFINE EVENT OVERWRITE audit_account ON account
       OR $before.frozen_at != $after.frozen_at
       OR $before.review_at != $after.review_at
       OR $before.iban != $after.iban
-    THEN fn::audit('account', $value.id, $event,
+    THEN fn::audit_system('account', $value.id, $event,
                    $before.{iban, kind, frozen_at, frozen_by, review_at, released_note},
                    $after.{iban, kind, frozen_at, frozen_by, review_at, released_note});
 DEFINE EVENT OVERWRITE audit_customer ON customer THEN
